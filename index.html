@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Diagram Builder | Amplitude</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="32" height="32" rx="8" fill="#1E61DC"/>
+                <path d="M16 6L26 26H6L16 6Z" fill="white"/>
+            </svg>
+            <span class="logo-text">Architecture Builder</span>
+        </div>
+        <nav class="header-actions">
+            <button class="btn btn-secondary">Export</button>
+            <button class="btn btn-primary">Share</button>
+        </nav>
+    </header>
+
+    <div class="app-body">
+        <aside class="sidebar">
+            <div class="category-picker">
+                <button class="category-tab active" data-category="marketing" title="Marketing Channels">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                </button>
+                <button class="category-tab" data-category="experiences" title="Owned Experiences">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                </button>
+                <button class="category-tab" data-category="sources" title="Data Sources">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                    </svg>
+                </button>
+                <button class="category-tab" data-category="analysis" title="Analysis / Warehouse">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                </button>
+                <button class="category-tab" data-category="activation" title="Activation">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="sidebar-section">
+                <ul class="component-list" id="component-list">
+                    <!-- Components will be rendered by JavaScript -->
+                </ul>
+            </div>
+        </aside>
+
+        <main class="canvas-container">
+            <div class="canvas">
+                <div class="layer layer-marketing" data-layer="marketing">
+                    <div class="layer-label">Marketing Channels</div>
+                    <div class="layer-content"></div>
+                </div>
+
+                <div class="layer layer-experiences" data-layer="experiences">
+                    <div class="layer-label">Owned Experiences</div>
+                    <div class="layer-content"></div>
+                </div>
+
+                <div class="layer layer-sources" data-layer="sources">
+                    <div class="layer-label">Data Sources</div>
+                    <div class="layer-content"></div>
+                </div>
+
+                <div class="layer layer-analysis" data-layer="analysis">
+                    <div class="layer-label">Analysis / Warehouse</div>
+                    <div class="layer-content"></div>
+                </div>
+
+                <div class="layer layer-activation" data-layer="activation">
+                    <div class="layer-label">Activation</div>
+                    <div class="layer-content"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "marketingChannels": [
+    {
+      "id": "email",
+      "name": "Email",
+      "logo": "icons/email.svg",
+      "category": "direct"
+    },
+    {
+      "id": "sms",
+      "name": "SMS",
+      "logo": "icons/sms.svg",
+      "category": "direct"
+    },
+    {
+      "id": "paid-ads",
+      "name": "Paid Ads",
+      "logo": "icons/paid-ads.svg",
+      "category": "paid"
+    },
+    {
+      "id": "push-notifications",
+      "name": "Push Notifications",
+      "logo": "icons/push.svg",
+      "category": "direct"
+    },
+    {
+      "id": "social-media",
+      "name": "Social Media",
+      "logo": "icons/social.svg",
+      "category": "organic"
+    },
+    {
+      "id": "search",
+      "name": "Organic Search",
+      "logo": "icons/search.svg",
+      "category": "organic"
+    },
+    {
+      "id": "referral",
+      "name": "Referral",
+      "logo": "icons/referral.svg",
+      "category": "organic"
+    },
+    {
+      "id": "in-app",
+      "name": "In-App Messages",
+      "logo": "icons/in-app.svg",
+      "category": "direct"
+    }
+  ]
+}
