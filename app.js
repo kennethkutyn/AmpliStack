@@ -272,15 +272,32 @@ const icons = {
 };
 
 // Connection model definitions
+const cdpLikeSourceIds = ['cdp', 'segment'];
+const primaryWarehouseNodeIds = ['bigquery', 'databricks', 'snowflake'];
+const warehouseNodeIds = [...primaryWarehouseNodeIds, 's3'];
+
 const globalConnectionRules = [
-    { from: { category: 'marketing' }, to: { category: 'experiences' } },
+    {
+        from: { category: 'marketing' },
+        to: { category: 'experiences' },
+        exclusions: [
+            { sourceIds: ['push-notifications'], targetIds: ['web-app', 'website'] }
+        ]
+    },
     { from: { category: 'experiences' }, to: { ids: ['amplitude-sdk'] } },
-    { from: { category: 'experiences' }, to: { ids: ['cdp'] } },
+    { from: { category: 'experiences' }, to: { ids: cdpLikeSourceIds } },
     { from: { ids: ['amplitude-sdk'] }, to: { ids: ['amplitude-analytics'] } },
-    { from: { ids: ['cdp'] }, to: { category: 'analysis' } },
-    { from: { ids: ['cdp'] }, to: { category: 'activation' } },
-    { from: { ids: ['amplitude-analytics'] }, to: { ids: ['bigquery', 'databricks', 'snowflake'] } },
-    { from: { ids: ['amplitude-analytics'] }, to: { category: 'activation' } }
+    {
+        from: { ids: cdpLikeSourceIds },
+        to: { category: 'analysis' },
+        exclusions: [
+            { targetIds: ['bi'] }
+        ]
+    },
+    { from: { ids: cdpLikeSourceIds }, to: { category: 'activation' } },
+    { from: { ids: ['amplitude-analytics'] }, to: { ids: primaryWarehouseNodeIds } },
+    { from: { ids: ['amplitude-analytics'] }, to: { category: 'activation' } },
+    { from: { ids: warehouseNodeIds }, to: { ids: ['bi'] } }
 ];
 
 const connectionModels = {
@@ -1006,6 +1023,7 @@ function renderConnections() {
         sources.forEach(sourceNode => {
             targets.forEach(targetNode => {
                 if (sourceNode === targetNode) return;
+                if (shouldSkipConnection(rule, sourceNode, targetNode)) return;
                 const key = buildConnectionKey(sourceNode, targetNode, `rule-${tag}`);
                 if (dismissedConnections.has(key)) return;
                 const path = buildConnectorPath(sourceNode, targetNode, canvasRect);
@@ -1090,6 +1108,22 @@ function resolveSelectorNodes(selector = {}) {
         nodes = nodes.filter(node => selector.ids.includes(node.dataset.id));
     }
     return nodes;
+}
+
+function shouldSkipConnection(rule, sourceNode, targetNode) {
+    if (!rule?.exclusions?.length) return false;
+    return rule.exclusions.some(exclusion => {
+        const sourceIdMatch = matchesExclusionList(exclusion.sourceIds, sourceNode.dataset.id);
+        const sourceCategoryMatch = matchesExclusionList(exclusion.sourceCategories, sourceNode.dataset.category);
+        const targetIdMatch = matchesExclusionList(exclusion.targetIds, targetNode.dataset.id);
+        const targetCategoryMatch = matchesExclusionList(exclusion.targetCategories, targetNode.dataset.category);
+        return sourceIdMatch && sourceCategoryMatch && targetIdMatch && targetCategoryMatch;
+    });
+}
+
+function matchesExclusionList(list, value) {
+    if (!Array.isArray(list) || !list.length) return true;
+    return list.includes(value);
 }
 
 function renderPaidAdsAdditionalConnection(svg, canvasRect) {
