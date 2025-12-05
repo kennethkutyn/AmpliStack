@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Architecture Diagram Builder | Amplitude</title>
+    <title>AmpliStack | Amplitude</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -13,11 +13,10 @@
                 <rect width="32" height="32" rx="8" fill="#1E61DC"/>
                 <path d="M16 6L26 26H6L16 6Z" fill="white"/>
             </svg>
-            <span class="logo-text">Architecture Builder</span>
+            <span class="logo-text">AmpliStack</span>
         </div>
         <nav class="header-actions">
-            <button class="btn btn-secondary">Export</button>
-            <button class="btn btn-primary">Share</button>
+            <button class="btn btn-secondary" id="export-btn">Export</button>
         </nav>
     </header>
 
@@ -106,7 +105,7 @@
             </div>
         </main>
     </div>
-    <nav class="model-picker" aria-label="Architecture models">
+    <nav style="display: none;" class="model-picker" aria-label="Architecture models">
         <button class="model-option active" type="button" data-model="amplitude-to-warehouse">Amplitude → Warehouse</button>
         <button class="model-option" type="button" data-model="warehouse-to-amplitude">Warehouse → Amplitude</button>
         <button class="model-option" type="button" data-model="cdp-in-the-middle">CDP in the Middle</button>

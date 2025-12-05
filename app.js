@@ -1,3 +1,22 @@
+function buildConnectionKey(sourceNode, targetNode, tag = 'default') {
+    const sourceId = sourceNode?.dataset?.id || sourceNode?.dataset?.category || 'unknown-source';
+    const targetId = targetNode?.dataset?.id || targetNode?.dataset?.category || 'unknown-target';
+    return `${sourceId}->${targetId}:${tag}`;
+}
+
+function buildCustomConnectionKey(sourceId, targetId) {
+    return `custom:${sourceId}->${targetId}`;
+}
+
+function parseCustomConnectionKey(key) {
+    if (!key || !key.startsWith('custom:')) return {};
+    const arrowIndex = key.indexOf('->');
+    if (arrowIndex === -1) return {};
+    const sourceId = key.substring(7, arrowIndex);
+    const targetId = key.substring(arrowIndex + 2);
+    return { sourceId, targetId };
+}
+
 // Architecture Diagram Builder - Main Application
 
 // Category configuration with items
@@ -9,11 +28,11 @@ const categories = {
             { id: 'email', name: 'Email', icon: 'email' },
             { id: 'sms', name: 'SMS', icon: 'sms' },
             { id: 'paid-ads', name: 'Paid Ads', icon: 'paid-ads' },
-            { id: 'push-notifications', name: 'Push Notifications', icon: 'push' },
+            { id: 'push-notifications', name: 'Push', icon: 'push' },
             { id: 'social-media', name: 'Social Media', icon: 'social' },
-            { id: 'search', name: 'Organic Search', icon: 'search' },
+            { id: 'search', name: 'Organic', icon: 'search' },
             { id: 'referral', name: 'Referral', icon: 'referral' },
-            { id: 'in-app', name: 'In-App Messages', icon: 'in-app' }
+            { id: 'in-app', name: 'In-App', icon: 'in-app' }
         ]
     },
     experiences: {
@@ -22,16 +41,15 @@ const categories = {
         items: [
             { id: 'web-app', name: 'Web App', icon: 'web' },
             { id: 'mobile-app', name: 'Mobile App', icon: 'mobile' },
-            { id: 'website', name: 'Website', icon: 'globe' },
-            { id: 'onboarding', name: 'Onboarding', icon: 'onboarding' }
+            { id: 'website', name: 'Website', icon: 'globe' }
         ]
     },
     sources: {
         name: 'Data Sources',
         layer: 'sources',
         items: [
-            { id: 'amplitude-sdk', name: 'Amplitude SDK', icon: 'amplitude' },
-            { id: 'segment', name: 'Segment', icon: 'segment' },
+            { id: 'amplitude-sdk', name: 'Amplitude SDK', icon: 'amplitude-mark' },
+            { id: 'segment', name: 'Segment', icon: 'segment-mark' },
             { id: 'api', name: 'HTTP API', icon: 'api' },
             { id: 'cdp', name: 'CDP', icon: 'cdp' },
             { id: 'crm', name: 'CRM', icon: 'crm' }        ]
@@ -40,18 +58,19 @@ const categories = {
         name: 'Analysis / Warehouse',
         layer: 'analysis',
         items: [
-            { id: 'amplitude-analytics', name: 'Amplitude Analytics', icon: 'amplitude' },
+            { id: 'amplitude-analytics', name: 'Amplitude Analytics', icon: 'amplitude-mark' },
             { id: 'snowflake', name: 'Snowflake', icon: 'snowflake' },
             { id: 'bigquery', name: 'BigQuery', icon: 'bigquery' },
             { id: 'databricks', name: 'Databricks', icon: 'databricks' },
-            { id: 'looker', name: 'Looker', icon: 'looker' }
+            { id: 'bi', name: 'BI', icon: 'looker' },
+            { id: 's3', name: 'S3', icon: 'looker' }
         ]
     },
     activation: {
         name: 'Activation',
         layer: 'activation',
         items: [
-            { id: 'braze', name: 'Braze', icon: 'braze' },
+            { id: 'braze', name: 'Braze', icon: 'braze-mark' },
             { id: 'iterable', name: 'Iterable', icon: 'iterable' },
             { id: 'salesforce', name: 'Salesforce', icon: 'salesforce' },
             { id: 'hubspot', name: 'HubSpot', icon: 'hubspot' },
@@ -67,6 +86,26 @@ Object.entries(categories).forEach(([categoryKey, categoryDef]) => {
         itemCategoryIndex[item.id] = categoryKey;
     });
 });
+
+const leftMostPriorityMap = {
+    'paid-ads': 0,
+    'amplitude-sdk': 0,
+    'amplitude-analytics': 0
+};
+
+const SLOT_COLUMNS = 6;
+const layerOrder = {
+    marketing: [],
+    experiences: [],
+    sources: [],
+    analysis: [],
+    activation: []
+};
+
+const dismissedConnections = new Set();
+const customConnections = new Set();
+let pendingConnectionNode = null;
+let draggedNode = null;
 
 // Icon SVG templates
 const icons = {
@@ -144,10 +183,6 @@ const icons = {
     'amplitude': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="12 2 22 20 2 20 12 2"/>
     </svg>`,
-    'segment': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M12 6v6l4 2"/>
-    </svg>`,
     'api': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="16 18 22 12 16 6"/>
         <polyline points="8 6 2 12 8 18"/>
@@ -200,9 +235,8 @@ const icons = {
     </svg>`,
     
     // Activation
-    'braze': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-    </svg>`,
+    'segment': `<img src="assets/image-7cdc5575-456d-447a-bf0b-5be09cd63492.png" alt="Segment logo" width="20" height="20" style="display:block;" />`,
+    'braze': `<img src="assets/image-437456e2-68fb-462c-a2f0-ea67f946a2e7.png" alt="Braze logo" width="20" height="20" style="display:block;" />`,
     'iterable': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="17 1 21 5 17 9"/>
         <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
@@ -231,20 +265,25 @@ const icons = {
         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
         <line x1="12" y1="8" x2="12" y2="16"/>
         <line x1="8" y1="12" x2="16" y2="12"/>
-    </svg>`
+    </svg>`,
+    'amplitude-mark': `<img src="https://cdn.prod.website-files.com/64da81538e9bdebe7ae2fa11/64ee6c441b07b9e11db3dc92_A%20mark%20circle.svg" alt="Amplitude logo" width="20" height="20" style="display:block;" />`,
+    'braze-mark': `<img src="https://cdn-public.softwarereviews.com/production/favicons/offerings/8887/original/braze_fav.png" alt="Braze logo" width="20" height="20" style="display:block;" />`,
+    'segment-mark': `<img src="https://cdn.prod.website-files.com/60a4d4a53dd0c3f45579ac64/60ccab91521f5d2546df4610_5e8db5423d0e429ff92af6d4_segment-logo-FCBB33F58E-seeklogo.com.png" alt="Segment logo" width="20" height="20" style="display:block;" />`
 };
 
 // Connection model definitions
+const globalConnectionRules = [
+    { from: { category: 'marketing' }, to: { category: 'experiences' } },
+    { from: { category: 'experiences' }, to: { ids: ['amplitude-sdk'] } },
+    { from: { ids: ['amplitude-sdk'] }, to: { ids: ['amplitude-analytics'] } },
+    { from: { ids: ['amplitude-analytics'] }, to: { ids: ['bigquery', 'databricks', 'snowflake'] } },
+    { from: { ids: ['amplitude-analytics'] }, to: { category: 'activation' } }
+];
+
 const connectionModels = {
     'amplitude-to-warehouse': {
         name: 'Amplitude → Warehouse',
-        rules: [
-            { from: { category: 'marketing' }, to: { category: 'experiences' } },
-            { from: { category: 'experiences' }, to: { ids: ['amplitude-sdk'] } },
-            { from: { ids: ['amplitude-sdk'] }, to: { ids: ['amplitude-analytics'] } },
-            { from: { ids: ['amplitude-analytics'] }, to: { ids: ['bigquery', 'databricks', 'snowflake'] } },
-            { from: { ids: ['amplitude-analytics'] }, to: { category: 'activation' } }
-        ]
+        rules: []
     },
     'warehouse-to-amplitude': {
         name: 'Warehouse → Amplitude',
@@ -261,6 +300,7 @@ const connectionModels = {
 };
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const CONNECTION_COLOR = 'rgba(100, 116, 139, 0.75)';
 
 // Track active category
 let activeCategory = 'marketing';
@@ -292,6 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initCategoryPicker();
     initCustomEntryInput();
     initModelPicker();
+    initLayerDragTargets();
+    initExportButton();
     renderComponentList(activeCategory);
     renderConnections();
     window.addEventListener('resize', handleResize);
@@ -374,6 +416,72 @@ function initModelPicker() {
         });
     });
     updateModelPickerState();
+}
+
+function initLayerDragTargets() {
+    document.querySelectorAll('.layer-content').forEach(content => {
+        content.addEventListener('dragover', handleLayerDragOver);
+        content.addEventListener('dragleave', handleLayerDragLeave);
+        content.addEventListener('drop', handleLayerDrop);
+    });
+}
+
+// Dynamically load html2canvas when needed
+function loadHtml2Canvas() {
+    if (window.html2canvas) {
+        return Promise.resolve(window.html2canvas);
+    }
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        script.onload = () => resolve(window.html2canvas);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+async function initExportButton() {
+    const exportBtn = document.getElementById('export-btn');
+    if (!exportBtn) return;
+    exportBtn.addEventListener('click', async () => {
+        try {
+            const canvasElement = document.querySelector('.canvas');
+            if (!canvasElement) return;
+            await loadHtml2Canvas();
+            exportBtn.disabled = true;
+            exportBtn.textContent = 'Exporting...';
+            const options = {
+                backgroundColor: '#FFFFFF',
+                scale: window.devicePixelRatio || 2,
+                scrollX: 0,
+                scrollY: -window.scrollY,
+                useCORS: true
+            };
+
+            if (window.visualViewport) {
+                options.width = canvasElement.offsetWidth;
+                options.height = canvasElement.offsetHeight;
+            }
+
+            const canvas = await window.html2canvas(canvasElement, options);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (!blob) return;
+            const clipboardItem = new ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([clipboardItem]);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `amplistack-${Date.now()}.png`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Export failed', error);
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.textContent = 'Export';
+        }
+    });
 }
 
 function updateModelPickerState() {
@@ -471,7 +579,10 @@ function addItemToLayer(itemId, itemName, iconKey, category) {
     
     // Add to the layer with animation
     node.classList.add('entering');
+    const slotIndex = assignNodeSlot(category, itemId);
+    setNodeSlotPosition(node, slotIndex);
     layerContent.appendChild(node);
+    enforceNodeOrdering();
     
     // Trigger reflow for animation
     node.offsetHeight;
@@ -491,6 +602,7 @@ function createDiagramNode(itemId, itemName, iconKey, category) {
     node.className = `diagram-node node-${category}`;
     node.dataset.id = itemId;
     node.dataset.category = category;
+    node.setAttribute('draggable', 'true');
     
     const iconHtml = icons[iconKey] || icons['amplitude'];
     
@@ -503,14 +615,36 @@ function createDiagramNode(itemId, itemName, iconKey, category) {
                 <line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
         </button>
+        <button class="node-connect" title="Draw connection">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>
     `;
     
     // Add remove handler
     const removeBtn = node.querySelector('.node-remove');
     removeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        if (pendingConnectionNode === node) {
+            clearPendingConnection();
+        }
         removeItemFromLayer(itemId, category, node);
     });
+    
+    const connectBtn = node.querySelector('.node-connect');
+    connectBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startConnectionFromNode(node);
+    });
+    
+    node.addEventListener('click', () => {
+        handleNodeClick(node);
+    });
+
+    node.addEventListener('dragstart', handleDragStart);
+    node.addEventListener('dragend', handleDragEnd);
     
     return node;
 }
@@ -522,7 +656,14 @@ function removeItemFromLayer(itemId, category, node) {
     node.addEventListener('animationend', () => {
         node.remove();
         addedItems[category].delete(itemId);
+        const slots = ensureLayerSlots(category);
+        const index = slots.indexOf(itemId);
+        if (index !== -1) {
+            slots[index] = null;
+        }
         updateSidebarItemState(itemId, category, false);
+        removeRelatedCustomConnections(itemId);
+        enforceNodeOrdering();
         renderConnections();
     });
 }
@@ -538,21 +679,8 @@ function updateSidebarItemState(itemId, category, isAdded) {
     }
 }
 
-function updateLayerSpacing(model) {
-    const categoriesWithConnections = new Set();
-    model.rules.forEach(rule => {
-        gatherCategoriesFromSelector(rule.from, categoriesWithConnections);
-        gatherCategoriesFromSelector(rule.to, categoriesWithConnections);
-    });
-    
-    document.querySelectorAll('.layer').forEach(layer => {
-        const category = layer.dataset.layer;
-        const content = layer.querySelector('.layer-content');
-        if (!content) return;
-        const nodeCount = content.querySelectorAll('.diagram-node').length;
-        const shouldSpread = nodeCount >= 2 && categoriesWithConnections.has(category);
-        content.classList.toggle('layer-content--spread', shouldSpread);
-    });
+function updateLayerSpacing() {
+    // spacing handled purely via CSS grid; function kept for API compatibility
 }
 
 function gatherCategoriesFromSelector(selector = {}, set) {
@@ -569,6 +697,277 @@ function gatherCategoriesFromSelector(selector = {}, set) {
     }
 }
 
+function enforceNodeOrdering() {
+    const contents = document.querySelectorAll('.layer-content');
+    contents.forEach(content => {
+        const category = getLayerCategoryFromContent(content);
+        if (!category) return;
+        const nodes = Array.from(content.querySelectorAll('.diagram-node'));
+        if (!nodes.length) return;
+        const slots = ensureLayerSlots(category);
+        const remaining = new Set(nodes.map(node => node.dataset.id));
+        const orderedNodes = [];
+        slots.forEach((id, slotIndex) => {
+            if (!id) return;
+            const node = content.querySelector(`.diagram-node[data-id="${id}"]`);
+            if (node) {
+                setNodeSlotPosition(node, slotIndex);
+                orderedNodes.push(node);
+                remaining.delete(id);
+            }
+        });
+        // place nodes without slots at end
+        remaining.forEach(id => {
+            const node = content.querySelector(`.diagram-node[data-id="${id}"]`);
+            if (node) {
+                const slotIndex = assignNodeSlot(category, id);
+                setNodeSlotPosition(node, slotIndex);
+                orderedNodes.push(node);
+            }
+        });
+        orderedNodes.sort((a, b) => {
+            const slotA = Number(a.dataset.slotIndex) || 0;
+            const slotB = Number(b.dataset.slotIndex) || 0;
+            const priorityDiff = (leftMostPriorityMap[a.dataset.id] ?? 100) - (leftMostPriorityMap[b.dataset.id] ?? 100);
+            if (priorityDiff !== 0) return priorityDiff;
+            return slotA - slotB;
+        });
+        orderedNodes.forEach(node => content.appendChild(node));
+    });
+}
+
+function startConnectionFromNode(node) {
+    if (pendingConnectionNode === node) {
+        clearPendingConnection();
+        return;
+    }
+    clearPendingConnection();
+    pendingConnectionNode = node;
+    node.classList.add('pending-connection');
+}
+
+function handleNodeClick(node) {
+    if (draggedNode) return;
+    if (!pendingConnectionNode) return;
+    if (pendingConnectionNode === node) {
+        clearPendingConnection();
+        return;
+    }
+    addCustomConnection(pendingConnectionNode.dataset.id, node.dataset.id);
+    clearPendingConnection();
+}
+
+function clearPendingConnection() {
+    if (pendingConnectionNode) {
+        pendingConnectionNode.classList.remove('pending-connection');
+        pendingConnectionNode = null;
+    }
+}
+
+function addCustomConnection(sourceId, targetId) {
+    if (!sourceId || !targetId) return;
+    const key = buildCustomConnectionKey(sourceId, targetId);
+    customConnections.add(key);
+    dismissedConnections.delete(key);
+    renderConnections();
+}
+
+function removeRelatedCustomConnections(nodeId) {
+    const toDelete = [];
+    customConnections.forEach(key => {
+        const { sourceId, targetId } = parseCustomConnectionKey(key);
+        if (sourceId === nodeId || targetId === nodeId) {
+            toDelete.push(key);
+        }
+    });
+    toDelete.forEach(key => {
+        customConnections.delete(key);
+        dismissedConnections.delete(key);
+    });
+}
+
+function ensureLayerSlots(category) {
+    if (!layerOrder[category]) {
+        layerOrder[category] = [];
+    }
+    return layerOrder[category];
+}
+
+function assignNodeSlot(category, itemId) {
+    const slots = ensureLayerSlots(category);
+    let index = slots.indexOf(itemId);
+    if (index !== -1) return index;
+    index = slots.indexOf(null);
+    if (index === -1) {
+        index = slots.length;
+    }
+    slots[index] = itemId;
+    return index;
+}
+
+function setNodeSlotPosition(node, slotIndex) {
+    node.dataset.slotIndex = slotIndex;
+    const column = (slotIndex % SLOT_COLUMNS) + 1;
+    const row = Math.floor(slotIndex / SLOT_COLUMNS) + 1;
+    node.style.gridColumn = `${column} / span 1`;
+    node.style.gridRow = `${row} / span 1`;
+}
+
+function handleDragStart(e) {
+    draggedNode = e.currentTarget;
+    if (!draggedNode) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedNode.dataset.id);
+    requestAnimationFrame(() => draggedNode.classList.add('dragging'));
+}
+
+function handleDragEnd() {
+    if (draggedNode) {
+        draggedNode.classList.remove('dragging');
+        draggedNode = null;
+    }
+    document.querySelectorAll('.layer-content.drag-over').forEach(content => content.classList.remove('drag-over'));
+}
+
+function handleLayerDragOver(e) {
+    if (!draggedNode) return;
+    const content = e.currentTarget;
+    const targetCategory = getLayerCategoryFromContent(content);
+    if (targetCategory !== draggedNode.dataset.category) return;
+    e.preventDefault();
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+    }
+    content.classList.add('drag-over');
+}
+
+function handleLayerDragLeave(e) {
+    if (!draggedNode) return;
+    const content = e.currentTarget;
+    if (!content.contains(e.relatedTarget)) {
+        content.classList.remove('drag-over');
+    }
+}
+
+function handleLayerDrop(e) {
+    if (!draggedNode) return;
+    const content = e.currentTarget;
+    const targetCategory = getLayerCategoryFromContent(content);
+    if (targetCategory !== draggedNode.dataset.category) return;
+    e.preventDefault();
+    const slotIndex = getSlotIndex(content, e.clientX);
+    updateLayerOrderForNode(targetCategory, draggedNode.dataset.id, slotIndex);
+    setNodeSlotPosition(draggedNode, slotIndex);
+    content.classList.remove('drag-over');
+    enforceNodeOrdering();
+    renderConnections();
+    handleDragEnd();
+}
+
+function getLayerCategoryFromContent(content) {
+    return content?.parentElement?.dataset?.layer || content?.dataset?.layer || content?.closest('.layer')?.dataset?.layer || null;
+}
+
+function updateLayerOrderFromDom(content, category) {
+    if (!category) return;
+    const nodes = Array.from(content.querySelectorAll('.diagram-node'));
+    layerOrder[category] = nodes.map(node => node.dataset.id);
+}
+
+function getSlotIndex(content, clientX) {
+    const rect = content.getBoundingClientRect();
+    const relativeX = Math.min(Math.max(clientX - rect.left, 0), rect.width - 1);
+    const slotWidth = rect.width / SLOT_COLUMNS || 1;
+    const column = Math.min(SLOT_COLUMNS - 1, Math.max(0, Math.floor(relativeX / slotWidth)));
+    const currentSlot = Number(draggedNode?.dataset?.slotIndex) || 0;
+    const currentRow = Math.floor(currentSlot / SLOT_COLUMNS);
+    return currentRow * SLOT_COLUMNS + column;
+}
+
+function updateLayerOrderForNode(category, nodeId, slotIndex) {
+    const slots = ensureLayerSlots(category);
+    const normalizedSlot = Math.max(0, slotIndex);
+    while (slots.length <= normalizedSlot) slots.push(null);
+    const currentIndex = slots.indexOf(nodeId);
+    const displaced = slots[normalizedSlot];
+    if (currentIndex !== -1) slots[currentIndex] = displaced ?? null;
+    slots[normalizedSlot] = nodeId;
+    if (currentIndex === -1 && displaced) {
+        const empty = slots.indexOf(null);
+        if (empty !== -1) {
+            slots[empty] = displaced;
+        } else {
+            slots.push(displaced);
+        }
+    }
+}
+
+function buildSameTierConnectorPath(sourceNode, targetNode, canvasRect) {
+    const sourceRect = sourceNode.getBoundingClientRect();
+    const targetRect = targetNode.getBoundingClientRect();
+    const sourceSlot = Number(sourceNode.dataset.slotIndex) || 0;
+    const targetSlot = Number(targetNode.dataset.slotIndex) || 0;
+    const rowSource = Math.floor(sourceSlot / SLOT_COLUMNS);
+    const rowTarget = Math.floor(targetSlot / SLOT_COLUMNS);
+    if (rowSource !== rowTarget) return null;
+    const start = {
+        x: sourceRect.left + sourceRect.width / 2 - canvasRect.left,
+        y: sourceRect.top - canvasRect.top
+    };
+    const end = {
+        x: targetRect.left + targetRect.width / 2 - canvasRect.left,
+        y: targetRect.top - canvasRect.top
+    };
+    const slots = ensureLayerSlots(sourceNode.dataset.category);
+    const [minSlot, maxSlot] = [Math.min(sourceSlot, targetSlot), Math.max(sourceSlot, targetSlot)];
+    const hasIntermediateNodes = slots.some((id, idx) => idx > minSlot && idx < maxSlot && id);
+
+    let points;
+    if (!hasIntermediateNodes) {
+        const lateralStart = sourceSlot < targetSlot ? {
+            x: sourceRect.right - canvasRect.left,
+            y: sourceRect.top + sourceRect.height / 2 - canvasRect.top
+        } : {
+            x: sourceRect.left - canvasRect.left,
+            y: sourceRect.top + sourceRect.height / 2 - canvasRect.top
+        };
+        const lateralEnd = sourceSlot < targetSlot ? {
+            x: targetRect.left - canvasRect.left,
+            y: targetRect.top + targetRect.height / 2 - canvasRect.top
+        } : {
+            x: targetRect.right - canvasRect.left,
+            y: targetRect.top + targetRect.height / 2 - canvasRect.top
+        };
+        const midX = (lateralStart.x + lateralEnd.x) / 2;
+        points = [
+            lateralStart,
+            { x: midX, y: lateralStart.y },
+            { x: midX, y: lateralEnd.y },
+            lateralEnd
+        ];
+    } else {
+        const offsetY = Math.max(20, start.y - 20);
+        points = [
+            start,
+            { x: start.x, y: offsetY },
+            { x: end.x, y: offsetY },
+            end
+        ];
+    }
+
+    const pathData = createRoundedPath(points, 12);
+    if (!pathData) return null;
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', pathData);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', CONNECTION_COLOR);
+    path.setAttribute('stroke-width', '2.5');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('marker-end', 'url(#connection-arrow)');
+    return path;
+}
+
 // ---- Connection rendering ----
 
 function renderConnections() {
@@ -576,7 +975,13 @@ function renderConnections() {
     const model = connectionModels[activeModel];
     if (!canvas || !model) return;
 
-    updateLayerSpacing(model);
+    const combinedRuleDescriptors = [
+        ...globalConnectionRules.map((rule, idx) => ({ rule, tag: `global-${idx}` })),
+        ...(model.rules || []).map((rule, idx) => ({ rule, tag: `model-${activeModel}-${idx}` }))
+    ];
+    const combinedRules = combinedRuleDescriptors.map(descriptor => descriptor.rule);
+
+    updateLayerSpacing();
     
     const svg = ensureConnectionLayer();
     if (!svg) return;
@@ -589,22 +994,56 @@ function renderConnections() {
     
     svg.appendChild(createArrowMarker());
     
-    model.rules.forEach(rule => {
+    const connections = [];
+    
+    combinedRuleDescriptors.forEach(({ rule, tag }) => {
         const sources = resolveSelectorNodes(rule.from);
         const targets = resolveSelectorNodes(rule.to);
         
         sources.forEach(sourceNode => {
             targets.forEach(targetNode => {
                 if (sourceNode === targetNode) return;
+                const key = buildConnectionKey(sourceNode, targetNode, `rule-${tag}`);
+                if (dismissedConnections.has(key)) return;
                 const path = buildConnectorPath(sourceNode, targetNode, canvasRect);
                 if (path) {
+                    path.dataset.connectionKey = key;
                     svg.appendChild(path);
+                    connections.push(path);
                 }
             });
         });
     });
 
-    renderPaidAdsAdditionalConnection(svg, canvasRect);
+    customConnections.forEach(key => {
+        if (dismissedConnections.has(key)) return;
+        const { sourceId, targetId } = parseCustomConnectionKey(key);
+        if (!sourceId || !targetId) return;
+        const sourceNode = document.querySelector(`.diagram-node[data-id="${sourceId}"]`);
+        const targetNode = document.querySelector(`.diagram-node[data-id="${targetId}"]`);
+        if (!sourceNode || !targetNode) return;
+        const path = buildConnectorPath(sourceNode, targetNode, canvasRect);
+        if (path) {
+            path.dataset.connectionKey = key;
+            svg.appendChild(path);
+            connections.push(path);
+        }
+    });
+
+    const paidAdsPath = renderPaidAdsAdditionalConnection(svg, canvasRect);
+    if (paidAdsPath) {
+        connections.push(paidAdsPath);
+    }
+    
+    connections.forEach(path => {
+        path.addEventListener('click', () => {
+            const key = path.dataset.connectionKey;
+            if (key) {
+                dismissedConnections.add(key);
+            }
+            path.remove();
+        }, { once: true });
+    });
 }
 
 function ensureConnectionLayer() {
@@ -633,7 +1072,7 @@ function createArrowMarker() {
     
     const arrowPath = document.createElementNS(SVG_NS, 'path');
     arrowPath.setAttribute('d', 'M0,0 L4.8,2.4 L0,4.8 Z');
-    arrowPath.setAttribute('fill', 'rgba(30, 97, 220, 0.65)');
+    arrowPath.setAttribute('fill', CONNECTION_COLOR);
     marker.appendChild(arrowPath);
     defs.appendChild(marker);
     return defs;
@@ -653,7 +1092,11 @@ function resolveSelectorNodes(selector = {}) {
 function renderPaidAdsAdditionalConnection(svg, canvasRect) {
     const paidAdsNode = document.querySelector('.diagram-node[data-id="paid-ads"]');
     const amplitudeAnalyticsNode = document.querySelector('.diagram-node[data-id="amplitude-analytics"]');
-    if (!paidAdsNode || !amplitudeAnalyticsNode) return;
+    if (!paidAdsNode || !amplitudeAnalyticsNode) return null;
+
+    if (dismissedConnections.has('paid-ads-direct')) {
+        return null;
+    }
 
     const marketingLayer = document.querySelector('.layer[data-layer="marketing"]');
     const analysisLayer = document.querySelector('.layer[data-layer="analysis"]');
@@ -685,17 +1128,64 @@ function renderPaidAdsAdditionalConnection(svg, canvasRect) {
     if (!pathData) return;
 
     const path = document.createElementNS(SVG_NS, 'path');
+    path.dataset.connectionKey = 'paid-ads-direct';
     path.setAttribute('d', pathData);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', 'rgba(30, 97, 220, 0.65)');
+    path.setAttribute('stroke', CONNECTION_COLOR);
     path.setAttribute('stroke-width', '2.5');
     path.setAttribute('stroke-linejoin', 'round');
     path.setAttribute('stroke-linecap', 'round');
     path.setAttribute('marker-end', 'url(#connection-arrow)');
     svg.appendChild(path);
+    return path;
+}
+
+function buildActivationToMarketingPath(sourceNode, targetNode, canvasRect) {
+    const sourceRect = sourceNode.getBoundingClientRect();
+    const targetRect = targetNode.getBoundingClientRect();
+    const start = {
+        x: sourceRect.left + sourceRect.width / 2 - canvasRect.left,
+        y: sourceRect.bottom - canvasRect.top
+    };
+    const targetTop = {
+        x: targetRect.left + targetRect.width / 2 - canvasRect.left,
+        y: targetRect.top - canvasRect.top
+    };
+    const canvasRight = Math.max(canvasRect.width - 24, start.x + 24);
+    const topMargin = 24;
+    const offsetDown = Math.min(32, canvasRect.height - start.y - 24);
+
+    const points = [
+        start,
+        { x: start.x, y: start.y + offsetDown },
+        { x: canvasRight, y: start.y + offsetDown },
+        { x: canvasRight, y: topMargin },
+        { x: targetTop.x, y: topMargin },
+        targetTop
+    ];
+
+    const pathData = createRoundedPath(points, 17);
+    if (!pathData) return null;
+
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', pathData);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', CONNECTION_COLOR);
+    path.setAttribute('stroke-width', '2.5');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('marker-end', 'url(#connection-arrow)');
+    return path;
 }
 
 function buildConnectorPath(sourceNode, targetNode, canvasRect) {
+    if (sourceNode?.dataset?.category === 'activation' && targetNode?.dataset?.category === 'marketing') {
+        return buildActivationToMarketingPath(sourceNode, targetNode, canvasRect);
+    }
+    if (sourceNode?.dataset?.category === targetNode?.dataset?.category) {
+        const sameTierPath = buildSameTierConnectorPath(sourceNode, targetNode, canvasRect);
+        if (sameTierPath) return sameTierPath;
+    }
     const sourceRect = sourceNode.getBoundingClientRect();
     const targetRect = targetNode.getBoundingClientRect();
     const points = calculateConnectorPoints(sourceNode, targetNode, sourceRect, targetRect, canvasRect);
@@ -707,7 +1197,7 @@ function buildConnectorPath(sourceNode, targetNode, canvasRect) {
     const path = document.createElementNS(SVG_NS, 'path');
     path.setAttribute('d', pathData);
     path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', 'rgba(30, 97, 220, 0.65)');
+    path.setAttribute('stroke', CONNECTION_COLOR);
     path.setAttribute('stroke-width', '2.5');
     path.setAttribute('stroke-linejoin', 'round');
     path.setAttribute('stroke-linecap', 'round');

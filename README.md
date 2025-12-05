@@ -1,1 +1,1 @@
-# Archi
+# AmpliStack

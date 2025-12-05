@@ -131,7 +131,7 @@ body {
 .app-body {
     flex: 1;
     display: flex;
-    overflow: hidden;
+    min-height: 0;
     height: calc(100vh - var(--header-height));
 }
 
@@ -144,12 +144,15 @@ body {
     flex-direction: column;
     overflow-y: auto;
     flex-shrink: 0;
+    min-height: 0;
+    max-height: calc(100vh - var(--header-height));
 }
 
 .sidebar-section {
     padding: 16px;
     flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 /* Category Picker */
@@ -362,8 +365,10 @@ body {
     flex: 1;
     display: flex;
     justify-content: center;
-    padding: var(--canvas-padding);
+    padding: clamp(12px, 2vw, var(--canvas-padding));
     overflow: auto;
+    min-height: 0;
+    max-height: calc(100vh - var(--header-height));
 }
 
 .canvas {
@@ -372,11 +377,11 @@ body {
     background: var(--color-white);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
-    padding: 32px;
+    padding: clamp(20px, 2vw, 32px);
     display: flex;
     flex-direction: column;
     gap: var(--layer-gap);
-    height: fit-content;
+    min-height: 0;
     position: relative;
 }
 
@@ -411,16 +416,11 @@ body {
 .layer-content {
     flex: 1;
     padding: 48px 24px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 16px;
-    flex-wrap: wrap;
-}
-
-.layer-content.layer-content--spread {
-    justify-content: space-evenly;
-    gap: 32px;
+    justify-items: stretch;
+    align-items: start;
 }
 
 /* Layer color variants */
@@ -455,6 +455,7 @@ body {
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
+    width: 100%;
     background: var(--color-white);
     border: 2px solid var(--color-gray-300);
     border-radius: var(--radius-lg);
@@ -533,7 +534,9 @@ body {
     font-size: 13px;
     font-weight: 500;
     color: var(--color-gray-800);
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.3;
 }
 
 .node-remove {
@@ -558,6 +561,49 @@ body {
     background: #FEE2E2;
     border-color: #FCA5A5;
     color: #DC2626;
+}
+
+.diagram-node.dragging {
+    opacity: 0.6;
+    cursor: grabbing;
+}
+
+.node-connect {
+    position: absolute;
+    bottom: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-white);
+    border: 1px solid var(--color-gray-300);
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.15s ease;
+    color: var(--color-primary);
+}
+
+.diagram-node:hover .node-connect {
+    opacity: 1;
+}
+
+.node-connect:hover {
+    background: var(--layer-marketing);
+    border-color: var(--color-primary);
+    color: var(--color-primary-hover);
+}
+
+.diagram-node.pending-connection {
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.3);
+}
+
+.layer-content.drag-over {
+    border-style: solid;
+    border-color: var(--color-primary);
+    background: rgba(14, 165, 233, 0.05);
 }
 
 /* Node animations */
@@ -617,6 +663,11 @@ body {
     pointer-events: none;
     width: 100%;
     height: 100%;
+}
+
+.connection-layer path {
+    pointer-events: auto;
+    cursor: pointer;
 }
 
 /* Model picker */
