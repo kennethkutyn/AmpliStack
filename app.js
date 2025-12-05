@@ -275,7 +275,10 @@ const icons = {
 const globalConnectionRules = [
     { from: { category: 'marketing' }, to: { category: 'experiences' } },
     { from: { category: 'experiences' }, to: { ids: ['amplitude-sdk'] } },
+    { from: { category: 'experiences' }, to: { ids: ['cdp'] } },
     { from: { ids: ['amplitude-sdk'] }, to: { ids: ['amplitude-analytics'] } },
+    { from: { ids: ['cdp'] }, to: { category: 'analysis' } },
+    { from: { ids: ['cdp'] }, to: { category: 'activation' } },
     { from: { ids: ['amplitude-analytics'] }, to: { ids: ['bigquery', 'databricks', 'snowflake'] } },
     { from: { ids: ['amplitude-analytics'] }, to: { category: 'activation' } }
 ];
