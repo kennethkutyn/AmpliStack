@@ -98,6 +98,15 @@ const leftMostPriorityMap = {
 const SLOT_COLUMNS = 6;
 const DROP_ZONE_HORIZONTAL_PADDING = 48;
 const DROP_ZONE_VERTICAL_PADDING = 64;
+const LAYER_SEQUENCE = ['marketing', 'experiences', 'sources', 'analysis', 'activation'];
+const AMP_ADJACENCY_SOURCE_ID = 'amplitude-sdk';
+const AMP_ADJACENCY_TARGET_IDS = ['segment', 'tealium', 'cdp'];
+const MAX_COLUMN_DELTA_FOR_ADJACENCY = 1;
+const MAX_ROW_DELTA_FOR_ADJACENCY = 0;
+const ADJACENCY_PADDING_X = 12;
+const ADJACENCY_PADDING_Y = 8;
+const HORIZONTAL_PROXIMITY_THRESHOLD = 80;
+const VERTICAL_PROXIMITY_THRESHOLD = 32;
 const layerOrder = {
     marketing: [],
     experiences: [],
@@ -1186,13 +1195,17 @@ function renderConnections() {
     }
 
     updateLayerSpacing();
-    
+
+    const highlightLayer = ensureAdjacencyHighlightLayer();
     const svg = ensureConnectionLayer();
     if (!svg) return;
     
     const suppressors = model?.suppress || [];
-
     const canvasRect = canvas.getBoundingClientRect();
+    if (highlightLayer) {
+        clearAdjacencyHighlights(highlightLayer);
+    }
+
     svg.setAttribute('width', canvasRect.width);
     svg.setAttribute('height', canvasRect.height);
     svg.setAttribute('viewBox', `0 0 ${canvasRect.width} ${canvasRect.height}`);
@@ -1203,6 +1216,7 @@ function renderConnections() {
     
     const connections = [];
     let activationLabelCandidate = null;
+    const connectedPairs = new Set();
     
     combinedRuleDescriptors.forEach(({ rule, tag }) => {
         const sources = resolveSelectorNodes(rule.from);
@@ -1222,6 +1236,7 @@ function renderConnections() {
                     path.dataset.targetId = targetNode.dataset?.id || '';
                     svg.appendChild(path);
                     connections.push(path);
+                    registerConnectedPair(connectedPairs, sourceNode.dataset?.id, targetNode.dataset?.id);
                     handleBatchEventsLabel(svg, path, sourceNode, targetNode, key);
                     activationLabelCandidate = updateActivationLabelCandidate(
                         activationLabelCandidate,
@@ -1249,6 +1264,7 @@ function renderConnections() {
             path.dataset.targetId = targetId;
             svg.appendChild(path);
             connections.push(path);
+            registerConnectedPair(connectedPairs, sourceId, targetId);
             handleBatchEventsLabel(svg, path, sourceNode, targetNode, key);
             activationLabelCandidate = updateActivationLabelCandidate(
                 activationLabelCandidate,
@@ -1266,6 +1282,7 @@ function renderConnections() {
     }
 
     applyActivationLabel(svg, activationLabelCandidate);
+    updateAdjacencyHighlights(highlightLayer, canvasRect, connectedPairs);
     
     connections.forEach(path => {
         path.addEventListener('click', () => {
@@ -1403,6 +1420,152 @@ function ensureConnectionLayer() {
         canvas.appendChild(svg);
     }
     return svg;
+}
+
+function ensureAdjacencyHighlightLayer() {
+    const canvas = document.querySelector('.canvas');
+    if (!canvas) return null;
+    let layer = document.getElementById('adjacency-highlight-layer');
+    const firstChild = canvas.firstChild;
+    if (!layer) {
+        layer = document.createElement('div');
+        layer.setAttribute('id', 'adjacency-highlight-layer');
+        layer.classList.add('adjacency-highlight-layer');
+        if (firstChild) {
+            canvas.insertBefore(layer, firstChild);
+        } else {
+            canvas.appendChild(layer);
+        }
+    } else if (firstChild && layer !== firstChild) {
+        canvas.insertBefore(layer, firstChild);
+    }
+    return layer;
+}
+
+function clearAdjacencyHighlights(layer) {
+    if (!layer) return;
+    layer.innerHTML = '';
+}
+
+function registerConnectedPair(pairSet, sourceId, targetId) {
+    if (!pairSet || !sourceId || !targetId) return;
+    pairSet.add(`${sourceId}->${targetId}`);
+    pairSet.add(`${targetId}->${sourceId}`);
+}
+
+function areNodesConnected(pairSet, sourceId, targetId) {
+    if (!pairSet || !sourceId || !targetId) return false;
+    return pairSet.has(`${sourceId}->${targetId}`);
+}
+
+function areNodesVisuallyAdjacent(nodeA, nodeB) {
+    const layerA = nodeA?.dataset?.category;
+    const layerB = nodeB?.dataset?.category;
+    if (!layerA || !layerB) return false;
+    if (layerA === layerB) {
+        return areRowsClose(nodeA, nodeB) && areColumnsClose(nodeA, nodeB);
+    }
+    const indexA = LAYER_SEQUENCE.indexOf(layerA);
+    const indexB = LAYER_SEQUENCE.indexOf(layerB);
+    if (indexA === -1 || indexB === -1) return false;
+    return Math.abs(indexA - indexB) === 1 && areColumnsClose(nodeA, nodeB);
+}
+
+function getNodeColumnIndex(node) {
+    if (!node) return null;
+    const slotIndex = Number(node.dataset?.slotIndex);
+    if (Number.isNaN(slotIndex)) return null;
+    return slotIndex % SLOT_COLUMNS;
+}
+
+function getNodeRowIndex(node) {
+    if (!node) return null;
+    const slotIndex = Number(node.dataset?.slotIndex);
+    if (Number.isNaN(slotIndex)) return null;
+    return Math.floor(slotIndex / SLOT_COLUMNS);
+}
+
+function areColumnsClose(nodeA, nodeB) {
+    const columnA = getNodeColumnIndex(nodeA);
+    const columnB = getNodeColumnIndex(nodeB);
+    if (columnA === null || columnB === null) {
+        return areNodesHorizontallyClose(nodeA, nodeB);
+    }
+    return Math.abs(columnA - columnB) <= MAX_COLUMN_DELTA_FOR_ADJACENCY;
+}
+
+function areRowsClose(nodeA, nodeB) {
+    const rowA = getNodeRowIndex(nodeA);
+    const rowB = getNodeRowIndex(nodeB);
+    if (rowA === null || rowB === null) {
+        return areNodesVerticallyClose(nodeA, nodeB);
+    }
+    return Math.abs(rowA - rowB) <= MAX_ROW_DELTA_FOR_ADJACENCY;
+}
+
+function areNodesHorizontallyClose(nodeA, nodeB) {
+    const rectA = nodeA?.getBoundingClientRect?.();
+    const rectB = nodeB?.getBoundingClientRect?.();
+    if (!rectA || !rectB) return false;
+    const centerA = rectA.left + rectA.width / 2;
+    const centerB = rectB.left + rectB.width / 2;
+    return Math.abs(centerA - centerB) <= HORIZONTAL_PROXIMITY_THRESHOLD;
+}
+
+function areNodesVerticallyClose(nodeA, nodeB) {
+    const rectA = nodeA?.getBoundingClientRect?.();
+    const rectB = nodeB?.getBoundingClientRect?.();
+    if (!rectA || !rectB) return false;
+    const centerA = rectA.top + rectA.height / 2;
+    const centerB = rectB.top + rectB.height / 2;
+    return Math.abs(centerA - centerB) <= VERTICAL_PROXIMITY_THRESHOLD;
+}
+
+function createAdjacencyHighlight(nodeA, nodeB, canvasRect) {
+    if (!nodeA || !nodeB || !canvasRect) return null;
+    const rectA = nodeA.getBoundingClientRect();
+    const rectB = nodeB.getBoundingClientRect();
+    if (!rectA || !rectB) return null;
+    const rawLeft = Math.min(rectA.left, rectB.left) - canvasRect.left - ADJACENCY_PADDING_X;
+    const rawTop = Math.min(rectA.top, rectB.top) - canvasRect.top - ADJACENCY_PADDING_Y;
+    const rawRight = Math.max(rectA.right, rectB.right) - canvasRect.left + ADJACENCY_PADDING_X;
+    const rawBottom = Math.max(rectA.bottom, rectB.bottom) - canvasRect.top + ADJACENCY_PADDING_Y;
+
+    const left = Math.max(0, rawLeft);
+    const top = Math.max(0, rawTop);
+    const right = Math.min(canvasRect.width, rawRight);
+    const bottom = Math.min(canvasRect.height, rawBottom);
+    const width = Math.max(0, right - left);
+    const height = Math.max(0, bottom - top);
+    if (width <= 0 || height <= 0) return null;
+
+    const highlight = document.createElement('div');
+    highlight.classList.add('adjacency-highlight');
+    highlight.style.left = `${left}px`;
+    highlight.style.top = `${top}px`;
+    highlight.style.width = `${width}px`;
+    highlight.style.height = `${height}px`;
+    return highlight;
+}
+
+function updateAdjacencyHighlights(layer, canvasRect, connectedPairs) {
+    if (!layer || !canvasRect) return;
+    layer.innerHTML = '';
+    const anchorNode = document.querySelector(`.diagram-node[data-id="${AMP_ADJACENCY_SOURCE_ID}"]`);
+    if (!anchorNode) return;
+    const anchorId = anchorNode.dataset?.id;
+    if (!anchorId) return;
+
+    AMP_ADJACENCY_TARGET_IDS.forEach(targetId => {
+        const targetNode = document.querySelector(`.diagram-node[data-id="${targetId}"]`);
+        if (!targetNode) return;
+        if (!areNodesConnected(connectedPairs, anchorId, targetId)) return;
+        if (!areNodesVisuallyAdjacent(anchorNode, targetNode)) return;
+        const highlight = createAdjacencyHighlight(anchorNode, targetNode, canvasRect);
+        if (highlight) {
+            layer.appendChild(highlight);
+        }
+    });
 }
 
 function createArrowMarker() {
