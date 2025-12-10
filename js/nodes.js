@@ -1,0 +1,624 @@
+import {
+    SLOT_COLUMNS,
+    amplitudeSdkBadgeOptions,
+    categories,
+    icons,
+    itemCategoryIndex,
+    modelAutoConfig
+} from './config.js';
+import {
+    activeCategory,
+    activeModel,
+    addedItems,
+    amplitudeSdkSelectedBadges,
+    customConnections,
+    customEntries,
+    dismissedConnections,
+    getNextCustomEntryId,
+    setActiveCategory,
+    setActiveModel
+} from './state.js';
+import {
+    assignNodeSlot,
+    enforceNodeOrdering,
+    ensureLayerSlots,
+    getLayerCategoryFromContent,
+    getLayerContentFromTarget,
+    getLayerElementFromTarget,
+    getSlotIndex,
+    setNodeSlotPosition,
+    updateLayerOrderForNode
+} from './layout.js';
+import {
+    buildCustomConnectionKey,
+    parseCustomConnectionKey,
+    renderConnections
+} from './connections.js';
+import { trackAppLaunched, trackExportButtonClick, trackNodeAdded } from './analytics.js';
+
+let pendingConnectionNode = null;
+let draggedNode = null;
+let slotGuidesVisible = false;
+
+export function initCategoryPicker() {
+    const tabs = document.querySelectorAll('.category-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const category = tab.dataset.category;
+            switchCategory(category);
+        });
+    });
+}
+
+export function initModelPicker() {
+    const modelButtons = document.querySelectorAll('.model-option');
+    modelButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const modelId = button.dataset.model;
+            if (!modelId) return;
+            const wasActive = modelId === activeModel;
+            if (!wasActive) {
+                setActiveModel(modelId);
+                updateModelPickerState();
+                renderConnections();
+            }
+            applyModelAutoAdjustments(modelId);
+        });
+    });
+    updateModelPickerState();
+}
+
+export function initLayerDragTargets() {
+    document.querySelectorAll('.layer').forEach(layer => {
+        layer.addEventListener('dragover', handleLayerDragOver);
+        layer.addEventListener('dragleave', handleLayerDragLeave);
+        layer.addEventListener('drop', handleLayerDrop);
+    });
+}
+
+export function initCustomEntryInput() {
+    const input = document.getElementById('custom-entry-input');
+    const addBtn = document.getElementById('add-custom-btn');
+    if (!input || !addBtn) return;
+    addBtn.addEventListener('click', () => {
+        addCustomEntry();
+    });
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            addCustomEntry();
+        }
+    });
+}
+
+export async function initExportButton() {
+    const exportBtn = document.getElementById('export-btn');
+    if (!exportBtn) return;
+    const idleAriaLabel = exportBtn.getAttribute('aria-label') || 'Export diagram';
+    exportBtn.addEventListener('click', async () => {
+        trackExportButtonClick();
+        try {
+            const canvasElement = document.querySelector('.canvas');
+            if (!canvasElement) return;
+            await loadHtml2Canvas();
+            exportBtn.disabled = true;
+            exportBtn.setAttribute('aria-label', 'Exporting diagram');
+            const options = {
+                backgroundColor: '#FFFFFF',
+                scale: Math.max(window.devicePixelRatio || 1, 2),
+                scrollX: 0,
+                scrollY: -window.scrollY,
+                useCORS: true
+            };
+
+            if (window.visualViewport) {
+                options.width = canvasElement.offsetWidth;
+                options.height = canvasElement.offsetHeight;
+            }
+
+            const canvas = await window.html2canvas(canvasElement, options);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (!blob) return;
+            const clipboardItem = new ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([clipboardItem]);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `amplistack-${Date.now()}.png`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Export failed', error);
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.setAttribute('aria-label', idleAriaLabel);
+        }
+    });
+}
+
+export function switchCategory(category) {
+    if (!category || category === activeCategory) return;
+    document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.category === category);
+    });
+    setActiveCategory(category);
+    renderComponentList(category);
+}
+
+export function renderComponentList(category) {
+    const list = document.getElementById('component-list');
+    const categoryData = categories[category];
+
+    if (!list || !categoryData) return;
+    list.innerHTML = '';
+    list.dataset.category = category;
+
+    categoryData.items.forEach(item => {
+        const li = createComponentListItem(item, category, false);
+        list.appendChild(li);
+    });
+
+    customEntries[category].forEach(item => {
+        const li = createComponentListItem(item, category, true);
+        list.appendChild(li);
+    });
+}
+
+export function updateModelPickerState() {
+    const modelButtons = document.querySelectorAll('.model-option');
+    modelButtons.forEach(button => {
+        button.classList.toggle('active', button.dataset.model === activeModel);
+    });
+}
+
+function createComponentListItem(item, category, isCustom) {
+    const li = document.createElement('li');
+    li.className = 'component-item';
+    li.dataset.id = item.id;
+    li.dataset.category = category;
+
+    if (isCustom) {
+        li.classList.add('custom-entry');
+    }
+
+    if (addedItems[category].has(item.id)) {
+        li.classList.add('added');
+    }
+
+    const iconHtml = isCustom ? icons['custom'] : (icons[item.icon] || icons['amplitude']);
+
+    li.innerHTML = `
+        <div class="component-icon category-${category}">
+            ${iconHtml}
+        </div>
+        <span class="component-name">${item.name}</span>
+    `;
+
+    li.addEventListener('click', () => {
+        addItemToLayer(item.id, item.name, isCustom ? 'custom' : item.icon, category);
+    });
+
+    return li;
+}
+
+export function addCustomEntry() {
+    const input = document.getElementById('custom-entry-input');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) return;
+
+    const id = getNextCustomEntryId(activeCategory);
+    const entry = {
+        id,
+        name,
+        icon: 'custom',
+        isCustom: true
+    };
+
+    customEntries[activeCategory].push(entry);
+    itemCategoryIndex[id] = activeCategory;
+    input.value = '';
+    renderComponentList(activeCategory);
+
+    const list = document.getElementById('component-list');
+    if (list) {
+        list.scrollTop = list.scrollHeight;
+    }
+}
+
+export function addItemToLayer(itemId, itemName, iconKey, category) {
+    if (addedItems[category].has(itemId)) {
+        const existingNode = document.querySelector(`.layer[data-layer="${category}"] .diagram-node[data-id="${itemId}"]`);
+        if (existingNode) {
+            existingNode.classList.add('highlight');
+            setTimeout(() => existingNode.classList.remove('highlight'), 600);
+        }
+        return;
+    }
+
+    const layer = document.querySelector(`.layer[data-layer="${category}"]`);
+    const layerContent = layer?.querySelector('.layer-content');
+    if (!layerContent) return;
+
+    const node = createDiagramNode(itemId, itemName, iconKey, category);
+
+    node.classList.add('entering');
+    const slotIndex = assignNodeSlot(category, itemId);
+    setNodeSlotPosition(node, slotIndex);
+    layerContent.appendChild(node);
+    enforceNodeOrdering();
+
+    node.offsetHeight;
+    node.classList.remove('entering');
+
+    addedItems[category].add(itemId);
+    updateSidebarItemState(itemId, category, true);
+    renderConnections();
+    trackNodeAdded(itemName);
+}
+
+export function ensureItemAdded(itemId) {
+    const definition = getItemDefinition(itemId);
+    if (!definition) return;
+    const { id, name, icon, category } = definition;
+    if (addedItems[category]?.has(id)) return;
+    addItemToLayer(id, name, icon, category);
+}
+
+export function removeItemById(itemId) {
+    const node = document.querySelector(`.diagram-node[data-id="${itemId}"]`);
+    if (!node) return;
+    const category = node.dataset.category || itemCategoryIndex[itemId];
+    if (!category) return;
+    removeItemFromLayer(itemId, category, node);
+}
+
+export function applyModelAutoAdjustments(modelId) {
+    const config = modelAutoConfig[modelId];
+    if (!config) return;
+    (config.add || []).forEach(ensureItemAdded);
+    (config.remove || []).forEach(removeItemById);
+}
+
+function getItemDefinition(itemId) {
+    if (!itemId) return null;
+    const category = itemCategoryIndex[itemId];
+    if (!category) return null;
+    const categoryData = categories[category];
+    let item = categoryData?.items?.find(entry => entry.id === itemId);
+    if (!item) {
+        item = customEntries[category]?.find(entry => entry.id === itemId);
+    }
+    if (!item) return null;
+    return { ...item, category };
+}
+
+function createDiagramNode(itemId, itemName, iconKey, category) {
+    const node = document.createElement('div');
+    node.className = `diagram-node node-${category}`;
+    node.dataset.id = itemId;
+    node.dataset.category = category;
+    node.setAttribute('draggable', 'true');
+
+    const iconHtml = icons[iconKey] || icons['amplitude'];
+
+    node.innerHTML = `
+        <div class="node-icon category-${category}">${iconHtml}</div>
+        <span class="node-label">${itemName}</span>
+        <button class="node-remove" title="Remove">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+        <button class="node-connect" title="Draw connection">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>
+    `;
+
+    if (itemId === 'amplitude-sdk') {
+        attachAmplitudeSdkBadges(node);
+    }
+
+    const removeBtn = node.querySelector('.node-remove');
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (pendingConnectionNode === node) {
+            clearPendingConnection();
+        }
+        removeItemFromLayer(itemId, category, node);
+    });
+
+    const connectBtn = node.querySelector('.node-connect');
+    connectBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startConnectionFromNode(node);
+    });
+
+    node.addEventListener('click', () => {
+        handleNodeClick(node);
+    });
+
+    node.addEventListener('dragstart', handleDragStart);
+    node.addEventListener('dragend', handleDragEnd);
+
+    return node;
+}
+
+function attachAmplitudeSdkBadges(node) {
+    const badgesWrapper = document.createElement('div');
+    badgesWrapper.className = 'node-badges';
+
+    amplitudeSdkBadgeOptions.forEach(({ id, label }) => {
+        const badgeButton = document.createElement('button');
+        badgeButton.type = 'button';
+        badgeButton.className = 'node-badge';
+        badgeButton.dataset.badgeId = id;
+        badgeButton.textContent = label;
+        badgeButton.setAttribute('aria-label', `${label} badge`);
+        badgeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleAmplitudeSdkBadge(node, id);
+        });
+        badgesWrapper.appendChild(badgeButton);
+    });
+
+    node.appendChild(badgesWrapper);
+    syncAmplitudeSdkBadgeState(node);
+}
+
+function toggleAmplitudeSdkBadge(node, badgeId) {
+    if (amplitudeSdkSelectedBadges.has(badgeId)) {
+        amplitudeSdkSelectedBadges.delete(badgeId);
+    } else {
+        amplitudeSdkSelectedBadges.add(badgeId);
+    }
+    syncAmplitudeSdkBadgeState(node);
+}
+
+function syncAmplitudeSdkBadgeState(node) {
+    const hasActiveBadges = amplitudeSdkSelectedBadges.size > 0;
+    node.classList.toggle('has-active-badges', hasActiveBadges);
+    node.querySelectorAll('.node-badge').forEach(badge => {
+        const badgeId = badge.dataset.badgeId;
+        const isActive = amplitudeSdkSelectedBadges.has(badgeId);
+        badge.classList.toggle('active', isActive);
+        badge.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+}
+
+function removeItemFromLayer(itemId, category, node) {
+    node.classList.add('removing');
+
+    node.addEventListener('animationend', () => {
+        node.remove();
+        addedItems[category].delete(itemId);
+        const slots = ensureLayerSlots(category);
+        const index = slots.indexOf(itemId);
+        if (index !== -1) {
+            slots[index] = null;
+        }
+        updateSidebarItemState(itemId, category, false);
+        removeRelatedCustomConnections(itemId);
+        enforceNodeOrdering();
+        renderConnections();
+    });
+}
+
+function updateSidebarItemState(itemId, category, isAdded) {
+    if (category !== activeCategory) return;
+
+    const sidebarItem = document.querySelector(`.component-item[data-id="${itemId}"][data-category="${category}"]`);
+    if (sidebarItem) {
+        sidebarItem.classList.toggle('added', isAdded);
+    }
+}
+
+function startConnectionFromNode(node) {
+    if (pendingConnectionNode === node) {
+        clearPendingConnection();
+        return;
+    }
+    clearPendingConnection();
+    pendingConnectionNode = node;
+    node.classList.add('pending-connection');
+}
+
+function handleNodeClick(node) {
+    if (draggedNode) return;
+    if (!pendingConnectionNode) return;
+    if (pendingConnectionNode === node) {
+        clearPendingConnection();
+        return;
+    }
+    addCustomConnection(pendingConnectionNode.dataset.id, node.dataset.id);
+    clearPendingConnection();
+}
+
+function clearPendingConnection() {
+    if (pendingConnectionNode) {
+        pendingConnectionNode.classList.remove('pending-connection');
+        pendingConnectionNode = null;
+    }
+}
+
+function addCustomConnection(sourceId, targetId) {
+    if (!sourceId || !targetId) return;
+    const key = buildCustomConnectionKey(sourceId, targetId);
+    customConnections.add(key);
+    dismissedConnections.delete(key);
+    renderConnections();
+}
+
+function removeRelatedCustomConnections(nodeId) {
+    const toDelete = [];
+    customConnections.forEach(key => {
+        const { sourceId, targetId } = parseCustomConnectionKey(key);
+        if (sourceId === nodeId || targetId === nodeId) {
+            toDelete.push(key);
+        }
+    });
+    toDelete.forEach(key => {
+        customConnections.delete(key);
+        dismissedConnections.delete(key);
+    });
+}
+
+function showSlotGuides() {
+    if (slotGuidesVisible) return;
+    slotGuidesVisible = true;
+    document.querySelectorAll('.layer-content').forEach(content => {
+        refreshSlotGuideLayer(content);
+        content.classList.add('slot-guides-visible');
+    });
+}
+
+function hideSlotGuides() {
+    if (!slotGuidesVisible) return;
+    slotGuidesVisible = false;
+    document.querySelectorAll('.layer-content.slot-guides-visible').forEach(content => {
+        content.classList.remove('slot-guides-visible');
+    });
+}
+
+function refreshSlotGuideLayer(content) {
+    const guideLayer = ensureSlotGuideLayer(content);
+    const rowsToShow = getSlotGuideRowCount(content);
+    const totalSlots = rowsToShow * SLOT_COLUMNS;
+    const currentSlots = guideLayer.children.length;
+    if (currentSlots > totalSlots) {
+        while (guideLayer.children.length > totalSlots) {
+            guideLayer.removeChild(guideLayer.lastChild);
+        }
+    } else if (currentSlots < totalSlots) {
+        for (let i = currentSlots; i < totalSlots; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot-guide-ghost';
+            guideLayer.appendChild(slot);
+        }
+    }
+}
+
+function ensureSlotGuideLayer(content) {
+    let guideLayer = content.querySelector('.slot-guide-layer');
+    if (!guideLayer) {
+        guideLayer = document.createElement('div');
+        guideLayer.className = 'slot-guide-layer';
+        guideLayer.setAttribute('aria-hidden', 'true');
+        content.appendChild(guideLayer);
+    }
+    return guideLayer;
+}
+
+function getSlotGuideRowCount(content) {
+    const nodes = Array.from(content.querySelectorAll('.diagram-node'));
+    let highestSlotIndex = -1;
+    nodes.forEach(node => {
+        const slotIndex = Number(node.dataset?.slotIndex);
+        if (!Number.isNaN(slotIndex)) {
+            highestSlotIndex = Math.max(highestSlotIndex, slotIndex);
+        }
+    });
+    const category = getLayerCategoryFromContent(content);
+    if (category) {
+        const slots = ensureLayerSlots(category);
+        slots.forEach((id, index) => {
+            if (id) {
+                highestSlotIndex = Math.max(highestSlotIndex, index);
+            }
+        });
+    }
+    const rowsFromHighestIndex = highestSlotIndex >= 0 ? Math.floor(highestSlotIndex / SLOT_COLUMNS) + 1 : 0;
+    const rowsFromNodeCount = nodes.length ? Math.ceil(nodes.length / SLOT_COLUMNS) : 0;
+    return Math.max(1, rowsFromHighestIndex, rowsFromNodeCount);
+}
+
+function handleDragStart(e) {
+    draggedNode = e.currentTarget;
+    if (!draggedNode) return;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggedNode.dataset.id);
+    requestAnimationFrame(() => draggedNode.classList.add('dragging'));
+    showSlotGuides();
+}
+
+function handleDragEnd() {
+    hideSlotGuides();
+    if (draggedNode) {
+        draggedNode.classList.remove('dragging');
+        draggedNode = null;
+    }
+    document.querySelectorAll('.layer-content.drag-over').forEach(content => content.classList.remove('drag-over'));
+}
+
+function handleLayerDragOver(e) {
+    if (!draggedNode) return;
+    const layer = getLayerElementFromTarget(e.currentTarget);
+    const content = getLayerContentFromTarget(layer || e.currentTarget);
+    if (!content) return;
+    const targetCategory = getLayerCategoryFromContent(content);
+    if (targetCategory !== draggedNode.dataset.category) return;
+    e.preventDefault();
+    if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+    }
+    content.classList.add('drag-over');
+}
+
+function handleLayerDragLeave(e) {
+    if (!draggedNode) return;
+    const layer = getLayerElementFromTarget(e.currentTarget);
+    if (layer?.contains(e.relatedTarget)) return;
+    const content = getLayerContentFromTarget(layer || e.currentTarget);
+    if (content) {
+        content.classList.remove('drag-over');
+    }
+}
+
+function handleLayerDrop(e) {
+    if (!draggedNode) return;
+    const layer = getLayerElementFromTarget(e.currentTarget);
+    const content = getLayerContentFromTarget(layer || e.currentTarget);
+    if (!content) return;
+    const targetCategory = getLayerCategoryFromContent(content);
+    if (targetCategory !== draggedNode.dataset.category) return;
+    e.preventDefault();
+    const slotIndex = getSlotIndex(content, e.clientX, e.clientY);
+    updateLayerOrderForNode(targetCategory, draggedNode.dataset.id, slotIndex);
+    setNodeSlotPosition(draggedNode, slotIndex);
+    content.classList.remove('drag-over');
+    enforceNodeOrdering();
+    renderConnections();
+    handleDragEnd();
+}
+
+function loadHtml2Canvas() {
+    if (window.html2canvas) {
+        return Promise.resolve(window.html2canvas);
+    }
+    return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        script.async = true;
+        script.onload = () => resolve(window.html2canvas);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+}
+
+export function initializeApp() {
+    if (document?.documentElement) {
+        document.documentElement.style.setProperty('--slot-columns', String(SLOT_COLUMNS));
+    }
+    trackAppLaunched();
+    initCategoryPicker();
+    initCustomEntryInput();
+    initModelPicker();
+    initLayerDragTargets();
+    initExportButton();
+    renderComponentList(activeCategory);
+    renderConnections();
+    window.addEventListener('resize', () => renderConnections());
+}
