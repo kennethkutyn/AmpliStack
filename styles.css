@@ -372,16 +372,17 @@ body {
     padding: clamp(12px, 2vw, var(--canvas-padding));
     overflow: auto;
     min-height: 0;
-    max-height: calc(100vh - var(--model-picker-space));
-    height: calc(100vh - var(--model-picker-space));
+    max-height: 100vh;
+    height: 100vh;
     position: relative;
 }
 
 .canvas {
-    width: 100%;
+    width: 1200px;
+    min-width: 1200px;
     max-width: 1200px;
-    flex: 1;
-    height: 100%;
+    flex: 0 0 1200px;
+    height: 758px;
     background: var(--color-white);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
@@ -395,7 +396,7 @@ body {
 
 .export-btn-floating {
     position: absolute;
-    top: clamp(12px, 2vw, 32px);
+    bottom: clamp(12px, 2vw, 32px);
     right: clamp(12px, 2vw, 32px);
     z-index: 20;
     width: 56px;

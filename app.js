@@ -46,8 +46,9 @@ const categories = {
             { id: 'web-app', name: 'Web App', icon: 'web' },
             { id: 'mobile-app', name: 'Mobile App', icon: 'mobile' },
             { id: 'website', name: 'Website', icon: 'globe' },
-
             { id: 'ott', name: 'OTT', icon: 'ott' },
+            { id: 'call-center', name: 'Call Center', icon: 'call-center' },
+            { id: 'pos', name: 'PoS', icon: 'pos' }
         ]
     },
     sources: {
@@ -302,8 +303,8 @@ const icons = {
 
 const amplitudeSdkBadgeOptions = [
     { id: 'analytics', label: 'An' },
-    { id: 'experiment', label: 'Exp' },
-    { id: 'guides-surveys', label: 'G&S' },
+    { id: 'experiment', label: 'Ex' },
+    { id: 'guides-surveys', label: 'GS' },
     { id: 'session-replay', label: 'SR' }
 ];
 
@@ -325,7 +326,11 @@ const globalConnectionRules = [
         from: { category: 'marketing' },
         to: { category: 'experiences' },
         exclusions: [
-            { sourceIds: ['push-notifications'], targetIds: ['web-app', 'website'] }
+            { sourceIds: ['paid-ads'], targetIds: ['web-app', 'mobile-app', 'ott', 'call-center', 'pos'] },
+            { sourceIds: ['sms'], targetIds: ['web-app', 'website', 'ott', 'call-center', 'pos'] },
+            { sourceIds: ['push-notifications'], targetIds: ['web-app', 'website', 'ott', 'call-center', 'pos'] },
+            { sourceIds: ['search', 'referral'], targetIds: ['web-app', 'mobile-app', 'ott', 'call-center', 'pos'] },
+            { sourceIds: ['email'], targetIds: ['mobile-app'] }
         ]
     },
     { from: { category: 'experiences' }, to: { ids: ['amplitude-sdk'] } },
@@ -1816,6 +1821,11 @@ function buildActivationToMarketingPath(sourceNode, targetNode, canvasRect) {
         : sourceRect.right - canvasRect.left;
     const rightOffset = 32;
     const canvasEdgeMargin = 12;
+    const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+    const xMin = canvasEdgeMargin;
+    const xMax = canvasRect.width - canvasEdgeMargin;
+    const yMin = canvasEdgeMargin;
+    const yMax = canvasRect.height - canvasEdgeMargin;
     const desiredRight = Math.max(start.x + rightOffset, layerRightBoundary + rightOffset);
     const canvasRight = Math.min(canvasRect.width - canvasEdgeMargin, desiredRight);
     const tierClearance = 32;
@@ -1850,7 +1860,12 @@ function buildActivationToMarketingPath(sourceNode, targetNode, canvasRect) {
         targetTop
     );
 
-    const pathData = createRoundedPath(points, 17);
+    const clampedPoints = points.map(point => ({
+        x: clamp(point.x, xMin, xMax),
+        y: clamp(point.y, yMin, yMax)
+    }));
+
+    const pathData = createRoundedPath(clampedPoints, 17);
     if (!pathData) return null;
 
     const path = document.createElementNS(SVG_NS, 'path');
