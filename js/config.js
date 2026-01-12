@@ -47,7 +47,7 @@ export const categories = {
             { id: 'snowflake', name: 'Snowflake', icon: 'snowflake' },
             { id: 'bigquery', name: 'BigQuery', icon: 'bigquery' },
             { id: 'databricks', name: 'Databricks', icon: 'databricks' },
-            { id: 'bi', name: 'BI', icon: 'looker' },
+            { id: 'bi', name: 'BI', icon: 'search' },
             { id: 's3', name: 'S3', icon: 's3' },
             { id: 'llm', name: 'LLM', icon: 'llm' }
         ]
