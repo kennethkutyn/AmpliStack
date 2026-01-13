@@ -22,6 +22,10 @@ export function getNextCustomEntryId(category) {
     return `custom-${category}-${customEntryCounter}`;
 }
 
+export function resetCustomEntryCounter(nextValue = 0) {
+    customEntryCounter = Math.max(0, nextValue);
+}
+
 export let activeCategory = 'marketing';
 export function setActiveCategory(category) {
     activeCategory = category;

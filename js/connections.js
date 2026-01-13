@@ -21,6 +21,7 @@ import {
 } from './config.js';
 import { activeModel, customConnections, dismissedConnections } from './state.js';
 import { ensureLayerSlots } from './layout.js';
+import { persistDiagramState } from './persistence.js';
 
 const connectionLabels = new Map(); // connectionKey -> Set<SVGTextElement>
 
@@ -165,6 +166,7 @@ export function renderConnections() {
                 removeConnectionLabel(key);
             }
             path.remove();
+            void persistDiagramState();
         }, { once: true });
     });
 }

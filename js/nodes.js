@@ -15,6 +15,8 @@ import {
     customEntries,
     dismissedConnections,
     getNextCustomEntryId,
+    resetCustomEntryCounter,
+    layerOrder,
     setActiveCategory,
     setActiveModel
 } from './state.js';
@@ -35,6 +37,11 @@ import {
     renderConnections
 } from './connections.js';
 import { trackAppLaunched, trackExportButtonClick, trackNodeAdded } from './analytics.js';
+import {
+    clearPersistedDiagramState,
+    loadDiagramState,
+    persistDiagramState
+} from './persistence.js';
 
 let pendingConnectionNode = null;
 let draggedNode = null;
@@ -61,6 +68,7 @@ export function initModelPicker() {
                 setActiveModel(modelId);
                 updateModelPickerState();
                 renderConnections();
+                void persistDiagramState();
             }
             applyModelAutoAdjustments(modelId);
         });
@@ -170,6 +178,13 @@ export function updateModelPickerState() {
     });
 }
 
+function updateCategoryTabState() {
+    const tabs = document.querySelectorAll('.category-tab');
+    tabs.forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.category === activeCategory);
+    });
+}
+
 function createComponentListItem(item, category, isCustom) {
     const li = document.createElement('li');
     li.className = 'component-item';
@@ -223,6 +238,7 @@ export function addCustomEntry() {
     if (list) {
         list.scrollTop = list.scrollHeight;
     }
+    void persistDiagramState();
 }
 
 export function addItemToLayer(itemId, itemName, iconKey, category) {
@@ -254,6 +270,7 @@ export function addItemToLayer(itemId, itemName, iconKey, category) {
     updateSidebarItemState(itemId, category, true);
     renderConnections();
     trackNodeAdded(itemName);
+    void persistDiagramState();
 }
 
 export function ensureItemAdded(itemId) {
@@ -376,6 +393,7 @@ function toggleAmplitudeSdkBadge(node, badgeId) {
         amplitudeSdkSelectedBadges.add(badgeId);
     }
     syncAmplitudeSdkBadgeState(node);
+    void persistDiagramState();
 }
 
 function syncAmplitudeSdkBadgeState(node) {
@@ -404,6 +422,7 @@ function removeItemFromLayer(itemId, category, node) {
         removeRelatedCustomConnections(itemId);
         enforceNodeOrdering();
         renderConnections();
+        void persistDiagramState();
     });
 }
 
@@ -450,6 +469,7 @@ function addCustomConnection(sourceId, targetId) {
     customConnections.add(key);
     dismissedConnections.delete(key);
     renderConnections();
+    void persistDiagramState();
 }
 
 function removeRelatedCustomConnections(nodeId) {
@@ -591,6 +611,7 @@ function handleLayerDrop(e) {
     content.classList.remove('drag-over');
     enforceNodeOrdering();
     renderConnections();
+    void persistDiagramState();
     handleDragEnd();
 }
 
@@ -608,7 +629,7 @@ function loadHtml2Canvas() {
     });
 }
 
-export function initializeApp() {
+export async function initializeApp() {
     if (document?.documentElement) {
         document.documentElement.style.setProperty('--slot-columns', String(SLOT_COLUMNS));
     }
@@ -618,7 +639,129 @@ export function initializeApp() {
     initModelPicker();
     initLayerDragTargets();
     initExportButton();
+    initRefreshButton();
+    const restored = await restoreDiagramStateFromStorage();
+    if (!restored) {
+        updateCategoryTabState();
+        renderComponentList(activeCategory);
+        renderConnections();
+    }
+    window.addEventListener('resize', () => renderConnections());
+}
+
+async function restoreDiagramStateFromStorage() {
+    const stored = await loadDiagramState();
+    if (!stored) return false;
+    try {
+        Object.values(addedItems).forEach(set => set.clear());
+        Object.keys(layerOrder).forEach(category => {
+            layerOrder[category] = [];
+        });
+        Object.keys(customEntries).forEach(category => {
+            customEntries[category] = [];
+        });
+        customConnections.clear();
+        dismissedConnections.clear();
+        amplitudeSdkSelectedBadges.clear();
+        clearCustomItemIndex();
+
+        if (Array.isArray(stored.amplitudeSdkSelectedBadges)) {
+            stored.amplitudeSdkSelectedBadges.forEach(id => amplitudeSdkSelectedBadges.add(id));
+        }
+
+        let maxCustomId = 0;
+        if (stored.customEntries) {
+            Object.entries(stored.customEntries).forEach(([category, entries]) => {
+                if (!customEntries[category]) {
+                    customEntries[category] = [];
+                }
+                entries.forEach(entry => {
+                    customEntries[category].push({ ...entry });
+                    itemCategoryIndex[entry.id] = category;
+                    const match = /custom-[a-z-]+-(\d+)/.exec(entry.id);
+                    if (match) {
+                        const parsed = Number(match[1]);
+                        if (Number.isFinite(parsed)) {
+                            maxCustomId = Math.max(maxCustomId, parsed);
+                        }
+                    }
+                });
+            });
+        }
+        resetCustomEntryCounter(maxCustomId);
+
+        if (stored.layerOrder) {
+            Object.entries(stored.layerOrder).forEach(([category, slots]) => {
+                layerOrder[category] = Array.isArray(slots) ? [...slots] : [];
+            });
+        }
+
+        if (stored.activeModel) {
+            setActiveModel(stored.activeModel);
+        }
+        if (stored.activeCategory) {
+            setActiveCategory(stored.activeCategory);
+        }
+
+        Object.keys(addedItems).forEach(category => {
+            const slots = layerOrder[category] || [];
+            slots.forEach(id => {
+                if (id) ensureItemAdded(id);
+            });
+            const extraIds = new Set(stored.addedItems?.[category] || []);
+            slots.forEach(id => extraIds.delete(id));
+            extraIds.forEach(id => ensureItemAdded(id));
+        });
+
+        (stored.customConnections || []).forEach(key => customConnections.add(key));
+        (stored.dismissedConnections || []).forEach(key => dismissedConnections.add(key));
+
+        updateCategoryTabState();
+        updateModelPickerState();
+        renderComponentList(activeCategory);
+        renderConnections();
+        return true;
+    } catch (error) {
+        console.error('Failed to restore diagram state', error);
+        return false;
+    }
+}
+
+function initRefreshButton() {
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (!refreshBtn) return;
+    refreshBtn.addEventListener('click', () => {
+        clearDiagram();
+    });
+}
+
+function clearCustomItemIndex() {
+    Object.keys(itemCategoryIndex).forEach(id => {
+        if (id.startsWith('custom-')) {
+            delete itemCategoryIndex[id];
+        }
+    });
+}
+
+function clearDiagram() {
+    document.querySelectorAll('.diagram-node').forEach(node => node.remove());
+    Object.keys(addedItems).forEach(category => addedItems[category].clear());
+    Object.keys(layerOrder).forEach(category => {
+        layerOrder[category] = [];
+    });
+    customConnections.clear();
+    dismissedConnections.clear();
+    amplitudeSdkSelectedBadges.clear();
+    Object.keys(customEntries).forEach(category => {
+        customEntries[category] = [];
+    });
+    resetCustomEntryCounter(0);
+    clearCustomItemIndex();
+    setActiveModel(null);
+    setActiveCategory('marketing');
+    updateCategoryTabState();
+    updateModelPickerState();
     renderComponentList(activeCategory);
     renderConnections();
-    window.addEventListener('resize', () => renderConnections());
+    clearPersistedDiagramState();
 }
