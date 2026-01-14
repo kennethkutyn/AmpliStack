@@ -441,6 +441,16 @@ body {
     gap: 12px;
 }
 
+.canvas-container.is-exporting .floating-actions {
+    display: none;
+}
+
+.canvas-container.is-exporting {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+}
+
 .export-btn-floating {
     width: 56px;
     height: 56px;
