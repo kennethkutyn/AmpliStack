@@ -8,7 +8,8 @@ import {
     dismissedConnections,
     connectionAnnotations,
     dottedConnections,
-    layerOrder
+    layerOrder,
+    nodeNotes
 } from './state.js';
 
 const STORAGE_KEY = 'amplistack-diagram-state-v1';
@@ -50,7 +51,8 @@ export function serializeDiagramState() {
         dismissedConnections: Array.from(dismissedConnections),
         dottedConnections: Array.from(dottedConnections),
         connectionAnnotations: { ...connectionAnnotations },
-        amplitudeSdkSelectedBadges: Array.from(amplitudeSdkSelectedBadges)
+        amplitudeSdkSelectedBadges: Array.from(amplitudeSdkSelectedBadges),
+        nodeNotes: { ...nodeNotes }
     };
 }
 
