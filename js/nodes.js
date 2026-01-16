@@ -14,6 +14,8 @@ import {
     customConnections,
     customEntries,
     dismissedConnections,
+    connectionAnnotations,
+    dottedConnections,
     getNextCustomEntryId,
     resetCustomEntryCounter,
     layerOrder,
@@ -663,6 +665,8 @@ async function restoreDiagramStateFromStorage() {
         });
         customConnections.clear();
         dismissedConnections.clear();
+    dottedConnections.clear();
+    Object.keys(connectionAnnotations).forEach(key => delete connectionAnnotations[key]);
         amplitudeSdkSelectedBadges.clear();
         clearCustomItemIndex();
 
@@ -716,6 +720,14 @@ async function restoreDiagramStateFromStorage() {
 
         (stored.customConnections || []).forEach(key => customConnections.add(key));
         (stored.dismissedConnections || []).forEach(key => dismissedConnections.add(key));
+        (stored.dottedConnections || []).forEach(key => dottedConnections.add(key));
+        if (stored.connectionAnnotations && typeof stored.connectionAnnotations === 'object') {
+            Object.entries(stored.connectionAnnotations).forEach(([key, value]) => {
+                if (typeof value === 'string' && value.trim()) {
+                    connectionAnnotations[key] = value;
+                }
+            });
+        }
 
         updateCategoryTabState();
         updateModelPickerState();
@@ -766,6 +778,8 @@ function clearDiagram() {
     });
     customConnections.clear();
     dismissedConnections.clear();
+    dottedConnections.clear();
+    Object.keys(connectionAnnotations).forEach(key => delete connectionAnnotations[key]);
     amplitudeSdkSelectedBadges.clear();
     Object.keys(customEntries).forEach(category => {
         customEntries[category] = [];

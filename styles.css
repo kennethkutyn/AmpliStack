@@ -853,6 +853,58 @@ body {
     user-select: none;
 }
 
+.connection-context-menu {
+    position: fixed;
+    display: none;
+    flex-direction: column;
+    min-width: 160px;
+    background: var(--color-white);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 6px 0;
+    z-index: 200;
+}
+
+.connection-context-menu.visible {
+    display: flex;
+}
+
+.connection-context-option {
+    background: transparent;
+    border: none;
+    text-align: left;
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--color-gray-800);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.connection-context-option:hover {
+    background: var(--color-gray-50);
+    color: var(--color-primary);
+}
+
+.annotation-editor {
+    position: fixed;
+    min-width: 200px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    background: var(--color-white);
+    color: var(--color-gray-800);
+    font-size: 13px;
+    outline: none;
+    display: none;
+    z-index: 210;
+}
+
+.annotation-editor.visible {
+    display: block;
+}
+
 /* Model picker */
 .model-picker {
     position: fixed;

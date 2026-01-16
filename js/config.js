@@ -268,6 +268,7 @@ export const globalConnectionRules = [
         from: { category: 'marketing' },
         to: { category: 'experiences' },
         exclusions: [
+            { targetIds: ['ott', 'call-center', 'pos'] },
             { sourceIds: ['paid-ads'], targetIds: ['web-app', 'mobile-app', 'ott', 'call-center', 'pos'] },
             { sourceIds: ['sms'], targetIds: ['web-app', 'website', 'ott', 'call-center', 'pos'] },
             { sourceIds: ['push-notifications'], targetIds: ['web-app', 'website', 'ott', 'call-center', 'pos'] },
@@ -275,8 +276,13 @@ export const globalConnectionRules = [
             { sourceIds: ['email'], targetIds: ['mobile-app'] }
         ]
     },
-    { from: { category: 'experiences' }, to: { ids: ['amplitude-sdk'] } },
-    { from: { category: 'experiences' }, to: { ids: ['etl'] } },
+    { 
+        from: { category: 'experiences' }, 
+        to: { ids: ['amplitude-sdk'] },
+        exclusions: [
+            { sourceIds: ['call-center', 'pos'] }
+        ]
+    },
     { from: { category: 'experiences' }, to: { ids: cdpLikeSourceIds } },
     { from: { ids: ['amplitude-sdk'] }, to: { ids: ['amplitude-analytics'] } },
     {
@@ -301,8 +307,7 @@ export const connectionModels = {
     'warehouse-to-amplitude': {
         name: 'Warehouse → Amplitude',
         rules: [
-            { from: { ids: ['snowflake'] }, to: { ids: ['amplitude-analytics'] } },
-            { from: { ids: ['etl'] }, to: { ids: ['snowflake'] } }
+            { from: { ids: ['snowflake'] }, to: { ids: ['amplitude-analytics'] } }
         ],
         suppress: [
             { from: { ids: ['amplitude-analytics'] }, to: { ids: ['snowflake'] } }

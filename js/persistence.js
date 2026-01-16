@@ -6,6 +6,8 @@ import {
     customConnections,
     customEntries,
     dismissedConnections,
+    connectionAnnotations,
+    dottedConnections,
     layerOrder
 } from './state.js';
 
@@ -46,6 +48,8 @@ export function serializeDiagramState() {
         layerOrder: cloneLayerOrder(),
         customConnections: Array.from(customConnections),
         dismissedConnections: Array.from(dismissedConnections),
+        dottedConnections: Array.from(dottedConnections),
+        connectionAnnotations: { ...connectionAnnotations },
         amplitudeSdkSelectedBadges: Array.from(amplitudeSdkSelectedBadges)
     };
 }

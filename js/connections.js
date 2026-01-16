@@ -19,11 +19,31 @@ import {
     connectionModels,
     globalConnectionRules
 } from './config.js';
-import { activeModel, customConnections, dismissedConnections } from './state.js';
+import {
+    activeModel,
+    connectionAnnotations,
+    customConnections,
+    dismissedConnections,
+    dottedConnections
+} from './state.js';
 import { ensureLayerSlots } from './layout.js';
 import { persistDiagramState } from './persistence.js';
 
 const connectionLabels = new Map(); // connectionKey -> Set<SVGTextElement>
+let connectionContextMenu = null;
+let activeContextMenuKey = null;
+let lastContextMenuPosition = null;
+let annotationEditor = null;
+let activeAnnotationKey = null;
+const DEFAULT_LABEL_TEXTS = new Set([
+    BATCH_EVENT_LABEL_TEXT,
+    MCP_LABEL_TEXT,
+    EVENT_STREAM_LABEL_TEXT,
+    PAID_ADS_LABEL_TEXT
+]);
+const DEFAULT_LABEL_TEXTS_NORMALIZED = new Set(
+    Array.from(DEFAULT_LABEL_TEXTS).map(text => normalizeLabelText(text))
+);
 
 export function buildConnectionKey(sourceNode, targetNode, tag = 'default') {
     const sourceId = sourceNode?.dataset?.id || sourceNode?.dataset?.category || 'unknown-source';
@@ -54,6 +74,8 @@ export function renderConnections() {
     const canvas = document.querySelector('.canvas');
     if (!canvas) return;
     const model = activeModel ? connectionModels[activeModel] : null;
+
+    hideConnectionContextMenu();
 
     const combinedRuleDescriptors = [
         ...globalConnectionRules.map((rule, idx) => ({ rule, tag: `global-${idx}` }))
@@ -106,6 +128,7 @@ export function renderConnections() {
                     path.dataset.connectionKey = key;
                     path.dataset.sourceId = sourceNode.dataset?.id || '';
                     path.dataset.targetId = targetNode.dataset?.id || '';
+                    applyDottedStyle(path, key);
                     svg.appendChild(path);
                     connections.push(path);
                     registerConnectedPair(connectedPairs, sourceNode.dataset?.id, targetNode.dataset?.id);
@@ -118,6 +141,7 @@ export function renderConnections() {
                         targetNode,
                         key
                     );
+                    renderAnnotationForPath(svg, path, key);
                 }
             });
         });
@@ -135,6 +159,7 @@ export function renderConnections() {
             path.dataset.connectionKey = key;
             path.dataset.sourceId = sourceId;
             path.dataset.targetId = targetId;
+            applyDottedStyle(path, key);
             svg.appendChild(path);
             connections.push(path);
             registerConnectedPair(connectedPairs, sourceId, targetId);
@@ -147,11 +172,14 @@ export function renderConnections() {
                 targetNode,
                 key
             );
+            renderAnnotationForPath(svg, path, key);
         }
     });
 
     const paidAdsPath = renderPaidAdsAdditionalConnection(svg, canvasRect);
     if (paidAdsPath) {
+        applyDottedStyle(paidAdsPath, paidAdsPath.dataset.connectionKey);
+        renderAnnotationForPath(svg, paidAdsPath, paidAdsPath.dataset.connectionKey);
         connections.push(paidAdsPath);
     }
 
@@ -159,11 +187,19 @@ export function renderConnections() {
     updateAdjacencyHighlights(highlightLayer, canvasRect, connectedPairs);
 
     connections.forEach(path => {
+        path.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            showConnectionContextMenu(event, path.dataset.connectionKey || '');
+        });
         path.addEventListener('click', () => {
             const key = path.dataset.connectionKey;
             if (key) {
                 dismissedConnections.add(key);
                 removeConnectionLabel(key);
+                removeConnectionLabel(getAnnotationLabelKey(key));
+                hideConnectionContextMenuForKey(key);
+                dottedConnections.delete(key);
             }
             path.remove();
             void persistDiagramState();
@@ -295,9 +331,11 @@ function removeConnectionLabel(connectionKey) {
 
 function addPaidAdsLabel(svg, path) {
     if (!svg || !path) return;
-    const label = createConnectionLabel(svg, path, PAID_ADS_LABEL_TEXT, 'paid-ads-direct');
+    const key = 'paid-ads-direct';
+    if (connectionAnnotations[key]) return;
+    const label = createConnectionLabel(svg, path, PAID_ADS_LABEL_TEXT, key);
     if (label) {
-        registerConnectionLabel('paid-ads-direct', label);
+        registerConnectionLabel(key, label);
     }
 }
 
@@ -865,6 +903,278 @@ function getLayerGapCenter(upperNode, lowerNode, canvasRect) {
 function getLayerRect(node) {
     const layer = node.closest('.layer');
     return layer ? layer.getBoundingClientRect() : null;
+}
+
+function ensureConnectionContextMenu() {
+    if (connectionContextMenu) return connectionContextMenu;
+    connectionContextMenu = document.createElement('div');
+    connectionContextMenu.className = 'connection-context-menu';
+
+    const options = [
+        { id: 'dotted', label: 'Dotted' },
+        { id: 'add-annotation', label: 'Annotate' }
+    ];
+
+    options.forEach(option => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'connection-context-option';
+        button.dataset.optionId = option.id;
+        button.textContent = option.label;
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            handleConnectionContextMenuSelection(option.id);
+            hideConnectionContextMenu();
+        });
+        connectionContextMenu.appendChild(button);
+    });
+
+    connectionContextMenu.addEventListener('click', (event) => event.stopPropagation());
+    document.body.appendChild(connectionContextMenu);
+    attachConnectionContextMenuListeners();
+    return connectionContextMenu;
+}
+
+function attachConnectionContextMenuListeners() {
+    document.addEventListener('click', handleConnectionContextMenuOutsideClick);
+}
+
+function handleConnectionContextMenuOutsideClick(event) {
+    if (!connectionContextMenu) return;
+    if (!connectionContextMenu.classList.contains('visible')) return;
+    if (connectionContextMenu.contains(event.target)) return;
+    hideConnectionContextMenu();
+    closeInlineAnnotationEditor();
+}
+
+function handleConnectionContextMenuSelection(optionId) {
+    if (!activeContextMenuKey) return;
+    if (optionId === 'dotted') {
+        toggleDottedConnection(activeContextMenuKey);
+    } else if (optionId === 'add-annotation') {
+        openInlineAnnotationEditor(activeContextMenuKey);
+    }
+}
+
+function showConnectionContextMenu(event, connectionKey) {
+    const menu = ensureConnectionContextMenu();
+    activeContextMenuKey = connectionKey || null;
+    lastContextMenuPosition = { x: event.clientX, y: event.clientY };
+    menu.style.left = `${event.clientX}px`;
+    menu.style.top = `${event.clientY}px`;
+    menu.classList.add('visible');
+}
+
+function hideConnectionContextMenuForKey(connectionKey) {
+    if (!connectionKey) return;
+    if (connectionKey !== activeContextMenuKey) return;
+    hideConnectionContextMenu();
+}
+
+function hideConnectionContextMenu() {
+    if (!connectionContextMenu) return;
+    connectionContextMenu.classList.remove('visible');
+    activeContextMenuKey = null;
+    lastContextMenuPosition = null;
+}
+
+function toggleDottedConnection(connectionKey) {
+    if (!connectionKey) return;
+    if (dottedConnections.has(connectionKey)) {
+        dottedConnections.delete(connectionKey);
+    } else {
+        dottedConnections.add(connectionKey);
+    }
+    updateConnectionStrokeStyle(connectionKey);
+    void persistDiagramState();
+}
+
+function updateConnectionStrokeStyle(connectionKey) {
+    if (!connectionKey) return;
+    const safeKey = connectionKey.replace(/"/g, '\\"');
+    const path = document.querySelector(`path[data-connection-key="${safeKey}"]`);
+    if (path) {
+        applyDottedStyle(path, connectionKey);
+    }
+}
+
+function applyDottedStyle(path, connectionKey) {
+    if (!path || !connectionKey) return;
+    if (dottedConnections.has(connectionKey)) {
+        path.setAttribute('stroke-dasharray', '6 6');
+    } else {
+        path.removeAttribute('stroke-dasharray');
+    }
+}
+
+function updateConnectionAnnotation(connectionKey, options = {}) {
+    if (!connectionKey) return;
+    const safeKey = connectionKey.replace(/"/g, '\\"');
+    const path = document.querySelector(`path[data-connection-key="${safeKey}"]`);
+    if (path && path.ownerSVGElement) {
+        renderAnnotationForPath(path.ownerSVGElement, path, connectionKey);
+    } else {
+        removeConnectionLabel(getAnnotationLabelKey(connectionKey));
+        if (options.restoreDefaults) {
+            renderConnections();
+        }
+    }
+}
+
+function renderAnnotationForPath(svg, path, connectionKey) {
+    if (!svg || !path || !connectionKey) return;
+    removeAllLabelsForConnection(connectionKey);
+    const labelKey = getAnnotationLabelKey(connectionKey);
+    const text = connectionAnnotations[connectionKey];
+    if (!text) {
+        restoreDefaultLabelForPath(path, connectionKey);
+        return;
+    }
+    removeDefaultConnectionLabels(connectionKey);
+    const label = createConnectionLabel(svg, path, text, labelKey);
+    if (label) {
+        registerConnectionLabel(labelKey, label);
+    }
+}
+
+function getAnnotationLabelKey(connectionKey) {
+    return `${connectionKey}::annotation`;
+}
+
+function removeAllLabelsForConnection(connectionKey) {
+    removeConnectionLabel(connectionKey);
+    removeConnectionLabel(getAnnotationLabelKey(connectionKey));
+}
+
+function restoreDefaultLabelForPath(path, connectionKey) {
+    const svg = path?.ownerSVGElement;
+    if (!svg || !path) return;
+    const sourceId = path.dataset?.sourceId;
+    const targetId = path.dataset?.targetId;
+    const sourceNode = sourceId ? document.querySelector(`.diagram-node[data-id="${sourceId}"]`) : null;
+    const targetNode = targetId ? document.querySelector(`.diagram-node[data-id="${targetId}"]`) : null;
+
+    if (shouldLabelBatchEvents(sourceNode, targetNode)) {
+        const label = createConnectionLabel(svg, path, BATCH_EVENT_LABEL_TEXT, connectionKey);
+        if (label) registerConnectionLabel(connectionKey, label);
+        return;
+    }
+
+    if (shouldLabelMcpConnection(sourceNode, targetNode)) {
+        const label = createConnectionLabel(svg, path, MCP_LABEL_TEXT, connectionKey);
+        if (label) registerConnectionLabel(connectionKey, label);
+        return;
+    }
+
+    if (connectionKey === 'paid-ads-direct' && !connectionAnnotations[connectionKey]) {
+        addPaidAdsLabel(svg, path);
+        return;
+    }
+}
+
+function getConnectionExistingLabelText(connectionKey) {
+    if (connectionAnnotations[connectionKey]) {
+        return connectionAnnotations[connectionKey];
+    }
+    const labels = connectionLabels.get(connectionKey);
+    if (labels && labels.size) {
+        const [label] = labels;
+        const text = (label?.textContent || '').trim();
+        if (text) return text;
+    }
+    return '';
+}
+
+function removeDefaultConnectionLabels(connectionKey) {
+    const labels = connectionLabels.get(connectionKey);
+    if (!labels) return;
+    labels.forEach(label => {
+        const text = (label?.textContent || '').trim();
+        if (DEFAULT_LABEL_TEXTS_NORMALIZED.has(normalizeLabelText(text))) {
+            label.remove();
+            labels.delete(label);
+        }
+    });
+    if (!labels.size) {
+        connectionLabels.delete(connectionKey);
+    }
+}
+
+function normalizeLabelText(text = '') {
+    return String(text).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function openInlineAnnotationEditor(connectionKey) {
+    closeInlineAnnotationEditor();
+    if (!connectionKey) return;
+    const editor = ensureAnnotationEditorElement();
+    activeAnnotationKey = connectionKey;
+    const existing = getConnectionExistingLabelText(connectionKey);
+    editor.value = existing;
+    positionAnnotationEditor();
+    editor.classList.add('visible');
+    editor.focus();
+    editor.setSelectionRange(existing.length, existing.length);
+}
+
+function closeInlineAnnotationEditor() {
+    if (!annotationEditor) return;
+    annotationEditor.classList.remove('visible');
+    annotationEditor.value = '';
+    activeAnnotationKey = null;
+}
+
+function ensureAnnotationEditorElement() {
+    if (annotationEditor) return annotationEditor;
+    annotationEditor = document.createElement('input');
+    annotationEditor.type = 'text';
+    annotationEditor.className = 'annotation-editor';
+    annotationEditor.placeholder = 'Add annotation';
+    annotationEditor.addEventListener('click', (e) => e.stopPropagation());
+    annotationEditor.addEventListener('input', handleAnnotationInput);
+    annotationEditor.addEventListener('keydown', handleAnnotationKeydown);
+    annotationEditor.addEventListener('blur', handleAnnotationBlur);
+    document.body.appendChild(annotationEditor);
+    return annotationEditor;
+}
+
+function positionAnnotationEditor() {
+    if (!annotationEditor || !lastContextMenuPosition) return;
+    const offset = 8;
+    annotationEditor.style.left = `${lastContextMenuPosition.x + offset}px`;
+    annotationEditor.style.top = `${lastContextMenuPosition.y + offset}px`;
+}
+
+function handleAnnotationInput(event) {
+    if (!activeAnnotationKey) return;
+    const value = event.target.value || '';
+    const trimmed = value.trim();
+    if (trimmed) {
+        connectionAnnotations[activeAnnotationKey] = trimmed;
+    } else {
+        delete connectionAnnotations[activeAnnotationKey];
+    }
+    updateConnectionAnnotation(activeAnnotationKey);
+}
+
+function handleAnnotationKeydown(event) {
+    if (event.key === 'Enter' || event.key === 'Escape') {
+        event.preventDefault();
+        annotationEditor?.blur();
+    }
+}
+
+function handleAnnotationBlur() {
+    if (activeAnnotationKey) {
+        const value = annotationEditor?.value || '';
+        const trimmed = value.trim();
+        if (!trimmed) {
+            delete connectionAnnotations[activeAnnotationKey];
+            updateConnectionAnnotation(activeAnnotationKey, { restoreDefaults: true });
+        }
+        void persistDiagramState();
+    }
+    closeInlineAnnotationEditor();
 }
 
 export function handleResize() {

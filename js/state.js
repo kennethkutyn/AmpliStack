@@ -47,3 +47,5 @@ export const layerOrder = {
 export const dismissedConnections = new Set();
 export const customConnections = new Set();
 export const amplitudeSdkSelectedBadges = new Set();
+export const dottedConnections = new Set();
+export const connectionAnnotations = {};
