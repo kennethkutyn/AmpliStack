@@ -11,6 +11,8 @@ import {
     activeModel,
     addedItems,
     amplitudeSdkSelectedBadges,
+    DEFAULT_DIAGRAM_TITLE,
+    diagramTitle,
     customConnections,
     customEntries,
     dismissedConnections,
@@ -21,7 +23,9 @@ import {
     resetCustomEntryCounter,
     layerOrder,
     setActiveCategory,
-    setActiveModel
+    setActiveModel,
+    setDiagramTitle,
+    setLastEditedAt
 } from './state.js';
 import {
     assignNodeSlot,
@@ -605,10 +609,12 @@ function removeRelatedCustomConnections(nodeId) {
     });
 }
 
-function showSlotGuides() {
+function showSlotGuides(targetContent = null) {
     if (slotGuidesVisible) return;
+    const contents = targetContent ? [targetContent] : Array.from(document.querySelectorAll('.layer-content'));
+    if (!contents.length) return;
     slotGuidesVisible = true;
-    document.querySelectorAll('.layer-content').forEach(content => {
+    contents.forEach(content => {
         refreshSlotGuideLayer(content);
         content.classList.add('slot-guides-visible');
     });
@@ -680,7 +686,8 @@ function handleDragStart(e) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', draggedNode.dataset.id);
     requestAnimationFrame(() => draggedNode.classList.add('dragging'));
-    showSlotGuides();
+    const sourceContent = getLayerContentFromTarget(draggedNode);
+    showSlotGuides(sourceContent);
 }
 
 function handleDragEnd() {
@@ -765,6 +772,7 @@ export async function initializeApp() {
         updateCategoryTabState();
         renderComponentList(activeCategory);
         renderConnections();
+        applyDiagramTitleToDom(diagramTitle);
     }
     window.addEventListener('resize', () => renderConnections());
 }
@@ -787,6 +795,11 @@ async function restoreDiagramStateFromStorage() {
         Object.keys(nodeNotes).forEach(key => delete nodeNotes[key]);
         amplitudeSdkSelectedBadges.clear();
         clearCustomItemIndex();
+
+        const storedTitle = stored.diagramTitle || DEFAULT_DIAGRAM_TITLE;
+        setDiagramTitle(storedTitle);
+        applyDiagramTitleToDom(storedTitle);
+        setLastEditedAt(stored.lastEditedAt || null);
 
         if (Array.isArray(stored.amplitudeSdkSelectedBadges)) {
             stored.amplitudeSdkSelectedBadges.forEach(id => amplitudeSdkSelectedBadges.add(id));
@@ -915,9 +928,18 @@ function clearDiagram() {
     clearCustomItemIndex();
     setActiveModel(null);
     setActiveCategory('marketing');
+    setDiagramTitle(DEFAULT_DIAGRAM_TITLE);
+    setLastEditedAt(null);
+    applyDiagramTitleToDom(DEFAULT_DIAGRAM_TITLE);
     updateCategoryTabState();
     updateModelPickerState();
     renderComponentList(activeCategory);
     renderConnections();
     clearPersistedDiagramState();
+}
+
+function applyDiagramTitleToDom(title) {
+    const el = document.getElementById('diagram-title');
+    if (!el) return;
+    el.textContent = title || DEFAULT_DIAGRAM_TITLE;
 }

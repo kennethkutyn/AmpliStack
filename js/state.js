@@ -1,5 +1,22 @@
 // Shared mutable state for the diagram
 
+export const DEFAULT_DIAGRAM_TITLE = 'Untitled Diagram';
+export let diagramTitle = DEFAULT_DIAGRAM_TITLE;
+export let lastEditedAt = null;
+export function setDiagramTitle(title) {
+    const trimmed = (title || '').trim();
+    diagramTitle = trimmed || DEFAULT_DIAGRAM_TITLE;
+}
+export function getDiagramTitle() {
+    return diagramTitle;
+}
+export function setLastEditedAt(timestamp) {
+    lastEditedAt = timestamp || null;
+}
+export function getLastEditedAt() {
+    return lastEditedAt;
+}
+
 export const addedItems = {
     marketing: new Set(),
     experiences: new Set(),

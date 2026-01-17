@@ -38,11 +38,13 @@
     --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     
     /* Spacing */
-    --header-height: 64px;
+    --header-height: 48px;
     --sidebar-width: 260px;
+    --canvas-width: 1200px;
+    --canvas-height: 500px;
     --canvas-padding: 40px;
     --layer-gap: 16px;
-    --layer-min-height: 120px;
+    --layer-max-height: 81px;
     --slot-columns: 6;
     --model-picker-gap: 20px;
     --model-picker-height: 72px;
@@ -380,8 +382,9 @@ body {
 }
 
 .diagram-header {
-    width: 1200px;
-    max-width: 100%;
+    width: var(--canvas-width);
+    min-width: var(--canvas-width);
+    max-width: var(--canvas-width);
     background: var(--color-white);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
@@ -394,7 +397,7 @@ body {
 }
 
 .diagram-title {
-    font-size: 36px;
+    font-size: 24px;
     font-weight: 600;
     color: var(--color-gray-900);
     outline: none;
@@ -414,11 +417,11 @@ body {
 }
 
 .canvas {
-    width: 1200px;
-    min-width: 1200px;
-    max-width: 1200px;
-    flex: 0 0 1200px;
-    height: 758px;
+    width: var(--canvas-width);
+    min-width: var(--canvas-width);
+    max-width: var(--canvas-width);
+    flex: 0 0 auto;
+    height: auto;
     background: var(--color-white);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-lg);
@@ -510,17 +513,20 @@ body {
     background: inherit;
     padding: 2px 8px;
     border-radius: var(--radius-sm);
+    z-index: 3;
+    pointer-events: none;
 }
 
 .layer-content {
     flex: 1;
-    padding: 48px 24px 24px;
+    padding: 40px 12px 12px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: var(--layer-gap);
     justify-items: stretch;
     align-items: start;
     position: relative;
+    min-height: 110px;
 }
 
 .slot-guide-layer {
@@ -834,9 +840,8 @@ body {
 }
 
 .layer-content.drag-over {
-    border-style: solid;
-    border-color: var(--color-primary);
-    background: rgba(14, 165, 233, 0.05);
+    border: none;
+    background: inherit;
 }
 
 /* Node animations */
@@ -1061,6 +1066,10 @@ body {
 }
 
 @media (max-width: 768px) {
+    :root {
+        --canvas-width: 100%;
+    }
+
     .app-body {
         flex-direction: column;
         height: auto;
