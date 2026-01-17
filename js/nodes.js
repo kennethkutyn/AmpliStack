@@ -111,25 +111,25 @@ export async function initExportButton() {
     exportBtn.addEventListener('click', async () => {
         trackExportButtonClick();
         try {
-            const exportContainer = document.querySelector('.canvas-container');
-            if (!exportContainer) return;
+            const canvasElement = document.querySelector('.canvas');
+            if (!canvasElement) return;
             await loadHtml2Canvas();
             exportBtn.disabled = true;
             exportBtn.setAttribute('aria-label', 'Exporting diagram');
-            exportContainer.classList.add('is-exporting');
             const options = {
                 backgroundColor: '#FFFFFF',
                 scale: Math.max(window.devicePixelRatio || 1, 2),
                 scrollX: 0,
-                scrollY: 0,
-                useCORS: true,
-                width: exportContainer.scrollWidth,
-                height: exportContainer.scrollHeight,
-                windowWidth: exportContainer.scrollWidth,
-                windowHeight: exportContainer.scrollHeight
+                scrollY: -window.scrollY,
+                useCORS: true
             };
 
-            const canvas = await window.html2canvas(exportContainer, options);
+            if (window.visualViewport) {
+                options.width = canvasElement.offsetWidth;
+                options.height = canvasElement.offsetHeight;
+            }
+
+            const canvas = await window.html2canvas(canvasElement, options);
             const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
             if (!blob) return;
             const clipboardItem = new ClipboardItem({ 'image/png': blob });
@@ -143,10 +143,6 @@ export async function initExportButton() {
         } catch (error) {
             console.error('Export failed', error);
         } finally {
-            const exportContainer = document.querySelector('.canvas-container');
-            if (exportContainer) {
-                exportContainer.classList.remove('is-exporting');
-            }
             exportBtn.disabled = false;
             exportBtn.setAttribute('aria-label', idleAriaLabel);
         }
