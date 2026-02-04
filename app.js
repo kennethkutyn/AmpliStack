@@ -68,6 +68,12 @@ const setupLastEdited = () => {
     };
 
     titleEl.addEventListener('input', handleTitleChange);
+    titleEl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            titleEl.blur();
+        }
+    });
     titleEl.addEventListener('blur', handleTitleChange);
 };
 
