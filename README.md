@@ -23,7 +23,7 @@ Swap Base URL code from raileway to localhost:
 
 cd proxy
 npm install
-cp env.example .env   # set OPENAI_API_KEY, optional OPENAI_MODEL, ALLOWED_ORIGIN, PORT
+cp env.example .env   # set OPENAI_API_KEY, optional OPENAI_MODEL, ALLOWED_ORIGINS, PORT
 npm run dev           # listens on PORT (default 3000)
 ```
 

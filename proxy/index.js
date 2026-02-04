@@ -14,7 +14,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
+// Accept either a single origin (ALLOWED_ORIGIN) or a comma-separated list (ALLOWED_ORIGINS)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || process.env.ALLOWED_ORIGIN;
 
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
@@ -27,11 +28,18 @@ const defaultAllowed = [
   'http://localhost:3001',
   'http://127.0.0.1:3001',
   'http://localhost:5500',
-  'http://127.0.0.1:5500'
+  'http://127.0.0.1:5500',
+  // Hosted client (custom domain + GH Pages fallback)
+  'https://amplistack.amplitude.com',
+  'https://amplitude.github.io'
 ];
-const allowedOrigins = new Set(
-  [...defaultAllowed, ALLOWED_ORIGIN].filter(Boolean)
-);
+
+const envAllowed = (ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([...defaultAllowed, ...envAllowed]);
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.has(origin)) {
