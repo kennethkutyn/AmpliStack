@@ -909,7 +909,7 @@ function clearCustomItemIndex() {
     });
 }
 
-function clearDiagram() {
+export function clearDiagram() {
     document.querySelectorAll('.diagram-node').forEach(node => node.remove());
     Object.keys(addedItems).forEach(category => addedItems[category].clear());
     Object.keys(layerOrder).forEach(category => {
@@ -938,8 +938,14 @@ function clearDiagram() {
     clearPersistedDiagramState();
 }
 
-function applyDiagramTitleToDom(title) {
+export function applyDiagramTitleToDom(title, options = {}) {
+    const normalizedTitle = (title || '').trim() || DEFAULT_DIAGRAM_TITLE;
+    const { updateElement = true } = options;
+    if (typeof document !== 'undefined') {
+        document.title = `${normalizedTitle} | Amplistack`;
+    }
+    if (!updateElement) return;
     const el = document.getElementById('diagram-title');
     if (!el) return;
-    el.textContent = title || DEFAULT_DIAGRAM_TITLE;
+    el.textContent = normalizedTitle;
 }

@@ -1,4 +1,4 @@
-import { initializeApp } from './js/nodes.js';
+import { applyDiagramTitleToDom, initializeApp } from './js/nodes.js';
 import {
     DEFAULT_DIAGRAM_TITLE,
     getLastEditedAt,
@@ -6,6 +6,7 @@ import {
     setLastEditedAt
 } from './js/state.js';
 import { persistDiagramState } from './js/persistence.js';
+import { initAiButton } from './js/ai.js';
 
 const LAST_EDITED_STORAGE_KEY = 'amplistack:lastEditedAt';
 
@@ -44,6 +45,7 @@ const setupLastEdited = () => {
     lastEditedEl.textContent = `Last edited: ${formatTimestamp(getLastEditedAt())}`;
     const initialTitle = (titleEl.textContent || '').trim() || DEFAULT_DIAGRAM_TITLE;
     setDiagramTitle(initialTitle);
+    applyDiagramTitleToDom(initialTitle);
 
     const updateLastEdited = () => {
         const now = new Date().toISOString();
@@ -57,6 +59,7 @@ const setupLastEdited = () => {
         const trimmed = rawTitle.trim();
         const normalizedTitle = trimmed || DEFAULT_DIAGRAM_TITLE;
         setDiagramTitle(normalizedTitle);
+        applyDiagramTitleToDom(normalizedTitle, { updateElement: false });
         if (!trimmed && event?.type === 'blur') {
             titleEl.textContent = normalizedTitle;
         }
@@ -70,6 +73,7 @@ const setupLastEdited = () => {
 
 document.addEventListener('DOMContentLoaded', () => {
     (async () => {
+        initAiButton();
         await initializeApp();
         setupLastEdited();
     })();

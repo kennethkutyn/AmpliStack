@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AmpliStack | Amplitude</title>
+    <title>Untitled Diagram | Amplistack</title>
     <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.amplitude.com/script/b9c4712e45db54f13f1ce8785be948cd.js"></script>
@@ -78,6 +78,45 @@
                     </button>
                 </div>
             </div>
+            <div class="custom-toolbar" aria-label="Diagram actions">
+                <button class="toolbar-btn" id="copy-link-btn" aria-label="Copy link" title="Copy diagram link">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy Link</span>
+                </button>
+                <button class="toolbar-btn" id="refresh-btn" aria-label="Refresh diagram" title="Refresh diagram">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M1 20v-6h6"></path>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                        <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+                    </svg>
+                    <span>Refresh</span>
+                </button>
+                <button class="toolbar-btn" id="export-btn" aria-label="Export diagram" title="Export diagram">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <path d="M8 12h8M12 16l4-4-4-4"></path>
+                    </svg>
+                    <span>Screenshot</span>
+                </button>
+                <button class="toolbar-btn ai-btn" id="ai-btn" aria-label="AI assist" title="AI assist">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 3v2"></path>
+                        <path d="M12 19v2"></path>
+                        <path d="M5.64 5.64l1.41 1.41"></path>
+                        <path d="M16.95 16.95l1.41 1.41"></path>
+                        <path d="M3 12h2"></path>
+                        <path d="M19 12h2"></path>
+                        <path d="M5.64 18.36l1.41-1.41"></path>
+                        <path d="M16.95 7.05l1.41-1.41"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <span>AI</span>
+                </button>
+            </div>
         </aside>
 
         <main class="canvas-container">
@@ -94,28 +133,6 @@
                 <div class="diagram-last-edited" id="diagram-last-edited" aria-live="polite">
                     Last edited: --
                 </div>
-            </div>
-            <div class="floating-actions">
-                <button class="export-btn-floating" id="copy-link-btn" aria-label="Copy link" title="Copy diagram link">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                </button>
-                <button class="export-btn-floating refresh-btn" id="refresh-btn" aria-label="Refresh diagram" title="Refresh diagram">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M23 4v6h-6"></path>
-                        <path d="M1 20v-6h6"></path>
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
-                        <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
-                    </svg>
-                </button>
-                <button class="export-btn-floating" id="export-btn" aria-label="Export diagram" title="Export diagram">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9"></circle>
-                        <path d="M8 12h8M12 16l4-4-4-4"></path>
-                    </svg>
-                </button>
             </div>
             <div class="canvas">
                 <div class="layer layer-marketing" data-layer="marketing">
@@ -151,6 +168,27 @@
         <button class="model-option" type="button" data-model="warehouse-to-amplitude">Warehouse → Amplitude</button>
         <button class="model-option" type="button" data-model="cdp-in-the-middle">CDP in the Middle</button>
     </nav>
+    <script>
+        window.AMPLISTACK_API_BASE_URL = 'http://localhost:3001';
+    </script>
+    <div class="ai-dialog" id="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title" hidden>
+        <div class="ai-dialog__content">
+            <h2 id="ai-dialog-title">Generate with AI</h2>
+            <p class="ai-dialog__subtitle">
+                Provide a description, Granola notes, or call transcript to auto generate an architecture diagram.
+            </p>
+            <label class="sr-only" for="ai-input">AI input</label>
+            <textarea id="ai-input" class="ai-dialog__textarea" rows="6" placeholder="Paste notes or transcript here..."></textarea>
+            <div class="ai-dialog__loading" id="ai-loading" hidden>
+                <div class="ai-spinner" aria-hidden="true"></div>
+                <div class="ai-dialog__loading-text">Processing</div>
+            </div>
+            <div class="ai-dialog__actions">
+                <button type="button" id="ai-cancel-btn" class="ai-dialog__btn ai-dialog__btn--secondary">Cancel</button>
+                <button type="button" id="ai-submit-btn" class="ai-dialog__btn ai-dialog__btn--primary">Submit</button>
+            </div>
+        </div>
+    </div>
     <script type="module" src="app.js"></script>
 </body>
 </html>
