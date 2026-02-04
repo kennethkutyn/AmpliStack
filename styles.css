@@ -365,6 +365,56 @@ body {
     transform: scale(0.95);
 }
 
+.custom-toolbar {
+    padding: 10px 16px 16px;
+    border-top: 1px solid var(--color-gray-200);
+    background: var(--color-white);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius-md);
+    background: var(--color-white);
+    color: var(--color-gray-700);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.toolbar-btn svg {
+    stroke: currentColor;
+}
+
+.toolbar-btn:hover {
+    background: var(--color-gray-50);
+    border-color: var(--color-gray-400);
+    color: var(--color-gray-900);
+}
+
+.toolbar-btn:active {
+    transform: translateY(1px);
+}
+
+.ai-btn {
+    background: linear-gradient(135deg, #1E61DC 0%, #6C8FF1 100%);
+    color: var(--color-white);
+    border-color: transparent;
+}
+
+.ai-btn:hover {
+    background: linear-gradient(135deg, #1752C4 0%, #5c7ee3 100%);
+    color: var(--color-white);
+}
+
 /* Canvas Container */
 .canvas-container {
     flex: 1;
@@ -452,37 +502,6 @@ body {
     height: auto;
     max-height: none;
     overflow: visible;
-}
-
-.export-btn-floating {
-    width: 56px;
-    height: 56px;
-    border-radius: 999px;
-    border: none;
-    background: var(--color-primary);
-    color: var(--color-white);
-    box-shadow: 0 12px 30px rgba(30, 97, 220, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-}
-
-.export-btn-floating:hover {
-    background: var(--color-primary-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 16px 32px rgba(23, 82, 196, 0.45);
-}
-
-.export-btn-floating:active {
-    transform: translateY(0) scale(0.97);
-    box-shadow: 0 10px 24px rgba(23, 82, 196, 0.4);
-}
-
-.export-btn-floating svg {
-    pointer-events: none;
-    stroke: currentColor;
 }
 
 /* Layers */
@@ -776,6 +795,143 @@ body {
     background: #FEF9C3;
     border-color: #FACC15;
     color: #D97706;
+}
+
+.ai-dialog {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+    padding: 16px;
+}
+
+.ai-dialog[hidden] {
+    display: none;
+}
+
+.ai-dialog__content {
+    background: #fff;
+    color: #0f172a;
+    border-radius: 12px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ai-dialog--loading .ai-dialog__content {
+    max-width: 360px;
+    transition: max-width 0.2s ease;
+}
+
+.ai-dialog__subtitle {
+    margin: 0;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.ai-dialog__textarea {
+    width: 100%;
+    min-height: 140px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.ai-dialog__textarea:focus {
+    outline: 2px solid #1e61dc;
+    border-color: transparent;
+}
+
+.ai-dialog--loading .ai-dialog__textarea,
+.ai-dialog--loading .ai-dialog__subtitle {
+    display: none;
+}
+
+.ai-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.ai-dialog--loading .ai-dialog__actions {
+    display: none;
+}
+
+.ai-dialog__loading {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.ai-dialog--loading .ai-dialog__loading {
+    display: flex;
+}
+
+.ai-dialog__loading-text {
+    color: #475569;
+    font-size: 14px;
+}
+
+.ai-spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #1e61dc;
+    border-radius: 50%;
+    animation: ai-spin 0.8s linear infinite;
+}
+
+@keyframes ai-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ai-dialog__btn {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.ai-dialog__btn--secondary {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.ai-dialog__btn--primary {
+    background: #1e61dc;
+    color: #fff;
+}
+
+.ai-dialog__btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .node-remove {

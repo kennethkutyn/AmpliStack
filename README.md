@@ -1,32 +1,36 @@
 # AmpliStack
 
-Interactive, client-side architecture diagram for the Amplitude stack. Everything runs in the browser—no backend or build step required—just serve the static files.
+Interactive architecture diagram for the Amplitude stack. Static client + optional OpenAI proxy.
 
-## Prerequisites
-- Modern browser (Chrome, Edge, or Safari).
-- Any simple local HTTP server (needed because modules don’t load over `file://`).
+## Repo layout
+- Client (static, hosted on GH pages from Amplitude GH org): almost all the logic
+- Proxy (NPN, deployed on Railway, managed by Ken, from KK GH org): has OpenAI API keys and proxies requests to API
 
-## Run locally
+## Running the client locally (no proxy calls)
+- Serve the root statics (modules won’t load over `file://`):
+  - `python3 -m http.server 5173` → open `http://localhost:5173`
+  - or `npx serve . --listen 5173`
+  - or VS Code/ Cursor “Go Live”.
 
-### Easiest: “Go Live” in Cursor/VS Code
-1. Open the project folder in Cursor/VS Code.
-2. Open `index.html`.
-3. Click “Go Live” (from the status bar or Command Palette). This launches a local server and opens the app in your browser.
+## Running the proxy locally - NOT REQUIRED UNLESS YOU WANT TO CHANGE THE PROXY, MOST LOGIC IS IN CLIENT
+```
+Swap Base URL code from raileway to localhost: 
+    <script>
+        window.AMPLISTACK_API_BASE_URL = 'https://amplistack-production.up.railway.app';
+        //window.AMPLISTACK_API_BASE_URL = 'http://localhost:3000';
 
-### Alternative: quick ad-hoc server
-From the project root:
-- Python: `python3 -m http.server 5173` then visit `http://localhost:5173`
-- Node (if installed): `npx serve . --listen 5173` then visit `http://localhost:5173`
+    </script>
 
-Stop the server with `Ctrl+C`.
+cd proxy
+npm install
+cp env.example .env   # set OPENAI_API_KEY, optional OPENAI_MODEL, ALLOWED_ORIGINS, PORT
+npm run dev           # listens on PORT (default 3000)
+```
 
-## How it works
-- Static assets live in `index.html`, `styles.css`, and the `js/` modules.
-- Diagram state (title, last edited, layout) is persisted in `localStorage`.
+> Note: env vars are only read from `proxy/.env`. The client is static and ignores `.env` in the repo root.
 
-## Project layout
-- `index.html` – page shell and component containers.
-- `styles.css` – layout and styling.
-- `app.js` – app bootstrap, title/last-edited wiring.
-- `js/` – feature modules (nodes, state, persistence, connections, layout, analytics).
-- `assets/` – icons and logos for providers/connectors.
+
+## Deploying
+- Proxy on Railway: git push
+- Client on GitHub Pages: git push, then KK to test and manually sync to Amplitude GH org repo to update amplistack.amplitude.com
+
