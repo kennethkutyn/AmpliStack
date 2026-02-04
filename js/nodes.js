@@ -116,24 +116,26 @@ export async function initExportButton() {
         trackExportButtonClick();
         try {
             const exportContainer = document.querySelector('.canvas-container');
-            if (!exportContainer) return;
+            const captureTarget = document.querySelector('.canvas');
+            if (!exportContainer || !captureTarget) return;
             await loadHtml2Canvas();
             exportBtn.disabled = true;
             exportBtn.setAttribute('aria-label', 'Exporting diagram');
             exportContainer.classList.add('is-exporting');
+            const scale = Math.max(window.devicePixelRatio || 1, 2);
             const options = {
                 backgroundColor: '#FFFFFF',
-                scale: Math.max(window.devicePixelRatio || 1, 2),
+                scale,
                 scrollX: 0,
                 scrollY: 0,
                 useCORS: true,
-                width: exportContainer.scrollWidth,
-                height: exportContainer.scrollHeight,
-                windowWidth: exportContainer.scrollWidth,
-                windowHeight: exportContainer.scrollHeight
+                width: captureTarget.scrollWidth,
+                height: captureTarget.scrollHeight,
+                windowWidth: captureTarget.scrollWidth,
+                windowHeight: captureTarget.scrollHeight
             };
 
-            const canvas = await window.html2canvas(exportContainer, options);
+            const canvas = await window.html2canvas(captureTarget, options);
             const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
             if (!blob) return;
             const clipboardItem = new ClipboardItem({ 'image/png': blob });

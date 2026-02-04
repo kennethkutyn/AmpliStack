@@ -453,6 +453,7 @@ body {
     outline: none;
     min-width: 0;
     flex: 1;
+    white-space: pre-wrap;
 }
 
 .diagram-title:focus {
