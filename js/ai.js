@@ -1,4 +1,4 @@
-import { addItemToLayer, clearDiagram } from './nodes.js';
+import { addItemToLayer, clearDiagram, ensureItemAdded } from './nodes.js';
 import { customEntries, addedItems } from './state.js';
 import { itemCategoryIndex } from './config.js';
 import { customConnections, dismissedConnections } from './state.js';
@@ -9,6 +9,12 @@ import { persistDiagramState } from './persistence.js';
 const API_BASE_URL = window.AMPLISTACK_API_BASE_URL || 'https://amplistack-production.up.railway.app';
 const TRANSCRIPT_ENDPOINT = '/api/ai/transcript';
 const VALID_LAYERS = new Set(['marketing', 'experiences', 'sources', 'analysis', 'activation']);
+
+// Known vendor fallbacks when the AI omits a layer. Extend as needed.
+const AI_NODE_DEFAULTS = {
+    clevertap: { layer: 'activation' },
+    looker: { layer: 'analysis', icon: 'bi' }
+};
 
 function setButtonState(button, { disabled, label, text }) {
     button.disabled = disabled;
@@ -70,14 +76,24 @@ function normalizeLayer(layer) {
 }
 
 function upsertCustomEntry({ id, label, layer, icon = 'custom' }) {
-    const category = normalizeLayer(layer);
-    if (!category) return null;
     const safeId = id || slugify(label);
     const name = label || safeId;
 
     const existingCategory = itemCategoryIndex[safeId];
-    if (existingCategory && existingCategory !== category) {
+    const normalizedLayer = normalizeLayer(layer);
+    const defaultLayer = AI_NODE_DEFAULTS[safeId]?.layer;
+    const category = normalizedLayer || existingCategory || defaultLayer;
+    const resolvedIcon = AI_NODE_DEFAULTS[safeId]?.icon || icon;
+
+    if (existingCategory && category && existingCategory !== category) {
         return null;
+    }
+    if (!category) return null;
+
+    // If this is a known, pre-defined item (e.g., amplitude-sdk, s3), just add it.
+    if (existingCategory) {
+        ensureItemAdded(safeId);
+        return safeId;
     }
 
     const existsInCustom = customEntries[category].some(entry => entry.id === safeId);
@@ -85,14 +101,14 @@ function upsertCustomEntry({ id, label, layer, icon = 'custom' }) {
         customEntries[category].push({
             id: safeId,
             name,
-            icon,
+            icon: resolvedIcon,
             isCustom: true
         });
     }
     itemCategoryIndex[safeId] = category;
 
     if (!addedItems[category].has(safeId)) {
-        addItemToLayer(safeId, name, icon, category);
+        addItemToLayer(safeId, name, resolvedIcon, category);
     }
 
     return safeId;

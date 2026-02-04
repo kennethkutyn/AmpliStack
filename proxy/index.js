@@ -1,7 +1,13 @@
-import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { config as loadEnv } from 'dotenv';
 import cors from 'cors';
 import express from 'express';
 import OpenAI from 'openai';
+
+// Ensure we always load env vars from this folder, regardless of where the process is started.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+loadEnv({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
@@ -11,7 +17,29 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN;
 
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-const corsOptions = ALLOWED_ORIGIN ? { origin: ALLOWED_ORIGIN } : undefined;
+
+// Allow explicit origin plus common local dev hosts.
+const defaultAllowed = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+  'http://localhost:5500',
+  'http://127.0.0.1:5500'
+];
+const allowedOrigins = new Set(
+  [...defaultAllowed, ALLOWED_ORIGIN].filter(Boolean)
+);
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  }
+};
 
 const SYSTEM_PROMPT = `
 You are an Amplitude analytics solutions architect. Given a call transcript, extract architecture-ready details for building a data/activation diagram.
@@ -41,9 +69,13 @@ Return ONLY valid JSON with this shape:
 Rules:
 - JSON only; no prose.
 - Use best-effort extraction even if partial.
+- If there is mention of web site, web app, or mobile app, make sure to add an appropriate node to the "owned experiences" layer. 
+- if they mention a service or vendor that doesn't exist, you can suggest a new node and guess the most appropriate layer. 
+- Pay special attention to mention of Amplitude SDK. If they mention Mobile or Web app, assume an AMplitude SDK will be present unless the specifically say otherwise or mention a CDP. 
 - Prefer concise labels; derive stable ids from names (lowercase, dashes).
 - Map AmpliStack layers: marketing, experiences (owned surfaces/apps), sources (ingest), analysis (warehouse/BI/Amplitude), activation (destinations/engagement).
 - For flows, keep edge labels descriptive (e.g., "track events", "sync audiences").
+- If there is a mention of push, email, ads or similar, make sure to add the appropriate node to the "marketing channesl" layer
 - If something is unknown, use an empty array or empty string rather than guessing.
 `;
 

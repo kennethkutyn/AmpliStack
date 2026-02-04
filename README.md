@@ -21,6 +21,8 @@ cp env.example .env   # set OPENAI_API_KEY, optional OPENAI_MODEL, ALLOWED_ORIGI
 npm run dev           # listens on PORT (default 3000)
 ```
 
+> Note: env vars are only read from `proxy/.env`. The client is static and ignores `.env` in the repo root.
+
 ## Point client to local vs Railway proxy
 - Default base: `https://amplistack-production.up.railway.app` (set in `js/ai.js`).
 - To use local proxy while developing, set before loading scripts (e.g. in `index.html`):
