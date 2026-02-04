@@ -5,7 +5,8 @@ import { customConnections, dismissedConnections } from './state.js';
 import { buildCustomConnectionKey, renderConnections } from './connections.js';
 import { persistDiagramState } from './persistence.js';
 
-const API_BASE_URL = window.AMPLISTACK_API_BASE_URL || '';
+// Point the client to the deployed proxy by default; allow override via global if needed.
+const API_BASE_URL = window.AMPLISTACK_API_BASE_URL || 'https://amplistack-production.up.railway.app';
 const TRANSCRIPT_ENDPOINT = '/api/ai/transcript';
 const VALID_LAYERS = new Set(['marketing', 'experiences', 'sources', 'analysis', 'activation']);
 

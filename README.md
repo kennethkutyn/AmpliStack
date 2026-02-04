@@ -1,32 +1,38 @@
 # AmpliStack
 
-Interactive, client-side architecture diagram for the Amplitude stack. Everything runs in the browser—no backend or build step required—just serve the static files.
+Interactive architecture diagram for the Amplitude stack. Static client + optional OpenAI proxy.
 
-## Prerequisites
-- Modern browser (Chrome, Edge, or Safari).
-- Any simple local HTTP server (needed because modules don’t load over `file://`).
+## Repo layout
+- Client (static): root files `index.html`, `styles.css`, `app.js`, `js/`, `assets/`.
+- Proxy (server): `proxy/` with `index.js`, `package.json`, `Dockerfile`, `env.example`.
+- Ignore real secrets: `.env`, `proxy/.env`, `node_modules` are gitignored.
 
-## Run locally
+## Running the client locally (no proxy calls)
+- Serve the root statics (modules won’t load over `file://`):
+  - `python3 -m http.server 5173` → open `http://localhost:5173`
+  - or `npx serve . --listen 5173`
+  - or VS Code/ Cursor “Go Live”.
 
-### Easiest: “Go Live” in Cursor/VS Code
-1. Open the project folder in Cursor/VS Code.
-2. Open `index.html`.
-3. Click “Go Live” (from the status bar or Command Palette). This launches a local server and opens the app in your browser.
+## Running the proxy locally
+```
+cd proxy
+npm install
+cp env.example .env   # set OPENAI_API_KEY, optional OPENAI_MODEL, ALLOWED_ORIGIN, PORT
+npm run dev           # listens on PORT (default 3000)
+```
 
-### Alternative: quick ad-hoc server
-From the project root:
-- Python: `python3 -m http.server 5173` then visit `http://localhost:5173`
-- Node (if installed): `npx serve . --listen 5173` then visit `http://localhost:5173`
+## Point client to local vs Railway proxy
+- Default base: `https://amplistack-production.up.railway.app` (set in `js/ai.js`).
+- To use local proxy while developing, set before loading scripts (e.g. in `index.html`):
+  ```html
+  <script>window.AMPLISTACK_API_BASE_URL = 'http://localhost:3000';</script>
+  ```
+  Remove/comment this to revert to Railway.
 
-Stop the server with `Ctrl+C`.
+## Deploying
+- Proxy on Railway: deploy from `proxy/` (monorepo root); add `OPENAI_API_KEY` in Railway Variables; no need to set `PORT` (Railway injects it). Dockerfile handles install/start.
+- Client on GitHub Pages: serve the root statics (or `/docs` if you move them). No build step required.
 
-## How it works
-- Static assets live in `index.html`, `styles.css`, and the `js/` modules.
-- Diagram state (title, last edited, layout) is persisted in `localStorage`.
-
-## Project layout
-- `index.html` – page shell and component containers.
-- `styles.css` – layout and styling.
-- `app.js` – app bootstrap, title/last-edited wiring.
-- `js/` – feature modules (nodes, state, persistence, connections, layout, analytics).
-- `assets/` – icons and logos for providers/connectors.
+## Notes
+- Diagram state persists in `localStorage`.
+- OpenAI key stays server-side; the client never sees it.***
