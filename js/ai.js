@@ -75,20 +75,40 @@ function normalizeLayer(layer) {
     return VALID_LAYERS.has(lower) ? lower : null;
 }
 
-function upsertCustomEntry({ id, label, layer, icon = 'custom' }) {
+function ensureCategoryContainers(category) {
+    if (!category) return;
+    if (!customEntries[category]) customEntries[category] = [];
+    if (!addedItems[category]) addedItems[category] = new Set();
+}
+
+function isItemAlreadyAdded(itemId) {
+    return Object.values(addedItems).some(set => set.has(itemId));
+}
+
+function guessLayerFromKind(kind) {
+    const lower = (kind || '').toString().trim().toLowerCase();
+    if (!lower) return null;
+    if (lower === 'activation') return 'activation';
+    if (lower === 'warehouse' || lower === 'analysis') return 'analysis';
+    if (lower === 'amplitude') return 'analysis';
+    if (lower === 'datasource' || lower === 'source') return 'sources';
+    return null;
+}
+
+function upsertCustomEntry({ id, label, layer, kind, icon = 'custom' }) {
     const safeId = id || slugify(label);
     const name = label || safeId;
 
     const existingCategory = itemCategoryIndex[safeId];
     const normalizedLayer = normalizeLayer(layer);
+    const kindLayer = guessLayerFromKind(kind);
     const defaultLayer = AI_NODE_DEFAULTS[safeId]?.layer;
-    const category = normalizedLayer || existingCategory || defaultLayer;
+    // Prefer the catalog category if it exists; otherwise use AI layer, kind hint, then defaults.
+    const category = existingCategory || normalizedLayer || kindLayer || defaultLayer;
     const resolvedIcon = AI_NODE_DEFAULTS[safeId]?.icon || icon;
 
-    if (existingCategory && category && existingCategory !== category) {
-        return null;
-    }
     if (!category) return null;
+    ensureCategoryContainers(category);
 
     // If this is a known, pre-defined item (e.g., amplitude-sdk, s3), just add it.
     if (existingCategory) {
@@ -126,10 +146,35 @@ function applyDiagramFromAi(result) {
             id: node?.id,
             label: node?.label || node?.name,
             layer: node?.layer,
+            kind: node?.kind,
             icon: 'custom'
         });
         if (id) {
             createdIds.add(id);
+        }
+    });
+
+    // Safety net: if any node failed to add (missing category resolution, etc.), try once more with a fallback.
+    nodes.forEach(node => {
+        const nodeId = node?.id;
+        if (!nodeId || isItemAlreadyAdded(nodeId)) return;
+        const normalizedLayer = normalizeLayer(node?.layer);
+        const kindLayer = guessLayerFromKind(node?.kind);
+        const defaultLayer = AI_NODE_DEFAULTS[nodeId]?.layer || AI_NODE_DEFAULTS[slugify(node?.label)]?.layer;
+        const category = itemCategoryIndex[nodeId] || normalizedLayer || kindLayer || defaultLayer || 'analysis';
+        ensureCategoryContainers(category);
+        const existsInCustom = customEntries[category].some(entry => entry.id === nodeId);
+        if (!existsInCustom) {
+            customEntries[category].push({
+                id: nodeId,
+                name: node?.label || nodeId,
+                icon: AI_NODE_DEFAULTS[nodeId]?.icon || 'custom',
+                isCustom: true
+            });
+        }
+        itemCategoryIndex[nodeId] = category;
+        if (!addedItems[category].has(nodeId)) {
+            addItemToLayer(nodeId, node?.label || nodeId, AI_NODE_DEFAULTS[nodeId]?.icon || 'custom', category);
         }
     });
 
