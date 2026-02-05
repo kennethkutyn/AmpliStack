@@ -55,14 +55,8 @@ You are an Amplitude analytics solutions architect. Given a call transcript, ext
 Return ONLY valid JSON with this shape:
 {
   "architecture": { "goal": string, "scope": string },
-  "entities": [
-    { "name": string, "type": "product|datasource|activation|warehouse|pipeline|other", "layer": "marketing|experiences|sources|analysis|activation", "notes": string }
-  ],
   "events": [
     { "name": string, "properties": [string], "notes": string }
-  ],
-  "flows": [
-    { "from": string, "to": string, "description": string, "direction": "uni|bi" }
   ],
   "risks": [string],
   "assumptions": [string],
@@ -82,7 +76,7 @@ Rules:
 - Pay special attention to mention of Amplitude SDK. If they mention Mobile or Web app, assume an AMplitude SDK will be present unless the specifically say otherwise or mention a CDP. 
 - Prefer concise labels; derive stable ids from names (lowercase, dashes).
 - Map AmpliStack layers: marketing, experiences (owned surfaces/apps), sources (ingest), analysis (warehouse/BI/Amplitude), activation (destinations/engagement).
-- For flows, keep edge labels descriptive (e.g., "track events", "sync audiences").
+- For diagramEdges, keep labels descriptive (e.g., "track events", "sync audiences").
 - If there is a mention of push, email, ads or similar, make sure to add the appropriate node to the "marketing channesl" layer
 - If something is unknown, use an empty array or empty string rather than guessing.
 `;
