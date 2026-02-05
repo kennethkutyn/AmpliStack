@@ -31,7 +31,8 @@ const defaultAllowed = [
   'http://127.0.0.1:5500',
   // Hosted client (custom domain + GH Pages fallback)
   'https://amplistack.amplitude.com',
-  'https://amplitude.github.io'
+  'https://amplitude.github.io',
+  'https://kennethkutyn.github.io'
 ];
 
 const envAllowed = (ALLOWED_ORIGINS || '')
