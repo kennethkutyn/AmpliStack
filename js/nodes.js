@@ -217,12 +217,13 @@ function createComponentListItem(item, category, isCustom) {
 
     const iconHtml = isCustom ? icons['custom'] : (icons[item.icon] || icons['amplitude']);
 
-    li.innerHTML = `
+    const innerNodes = new DOMParser().parseFromString(`
         <div class="component-icon category-${category}">
             ${iconHtml}
         </div>
         <span class="component-name">${item.name}</span>
-    `;
+    `, 'text/html').body.childNodes;
+    li.append(...innerNodes);
 
     li.addEventListener('click', () => {
         addItemToLayer(item.id, item.name, isCustom ? 'custom' : item.icon, category);
