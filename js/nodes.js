@@ -221,8 +221,11 @@ function createComponentListItem(item, category, isCustom) {
         <div class="component-icon category-${category}">
             ${iconHtml}
         </div>
-        <span class="component-name">${item.name}</span>
     `;
+    const nameEl = document.createElement('span');
+    nameEl.className = 'component-name';
+    nameEl.textContent = item.name;
+    li.append(nameEl);
 
     li.addEventListener('click', () => {
         addItemToLayer(item.id, item.name, isCustom ? 'custom' : item.icon, category);
