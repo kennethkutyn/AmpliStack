@@ -13,9 +13,19 @@ import {
     layerOrder,
     nodeNotes
 } from './state.js';
+import { isLoggedIn } from './auth.js';
+import { saveDiagram, loadDiagram as apiLoadDiagram } from './api.js';
 
 const STORAGE_KEY = 'amplistack-diagram-state-v1';
 const URL_PARAM_KEY = 'state';
+const SHORTCODE_PARAM = 'd';
+
+let currentShortCode = null;
+let dbSaveTimer = null;
+const DB_SAVE_DEBOUNCE = 2000;
+
+export function getCurrentShortCode() { return currentShortCode; }
+export function setCurrentShortCode(code) { currentShortCode = code; }
 
 function cloneLayerOrder() {
     return Object.fromEntries(
@@ -63,7 +73,51 @@ export function serializeDiagramState() {
 export async function persistDiagramState() {
     const snapshot = serializeDiagramState();
     persistToLocalStorage(snapshot);
-    await persistToUrl(snapshot);
+
+    if (isLoggedIn() && currentShortCode) {
+        // Debounced save to database
+        debouncedDbSave(snapshot);
+        // Keep short URL clean (no encoded state param)
+        updateUrlWithShortCode();
+    } else {
+        await persistToUrl(snapshot);
+    }
+}
+
+function debouncedDbSave(snapshot) {
+    if (dbSaveTimer) clearTimeout(dbSaveTimer);
+    dbSaveTimer = setTimeout(async () => {
+        try {
+            await saveDiagram(snapshot.diagramTitle, snapshot, currentShortCode);
+        } catch (err) {
+            console.error('Failed to save diagram to database:', err);
+        }
+    }, DB_SAVE_DEBOUNCE);
+}
+
+function updateUrlWithShortCode() {
+    if (!currentShortCode) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(URL_PARAM_KEY);
+    url.searchParams.set(SHORTCODE_PARAM, currentShortCode);
+    window.history.replaceState(null, '', url.toString());
+}
+
+export async function saveToDatabase() {
+    if (!isLoggedIn()) throw new Error('Must be logged in to save');
+    const snapshot = serializeDiagramState();
+
+    const result = await saveDiagram(snapshot.diagramTitle, snapshot, currentShortCode || null);
+    currentShortCode = result.short_code;
+    updateUrlWithShortCode();
+    return result;
+}
+
+export async function loadFromDatabase(shortCode) {
+    const result = await apiLoadDiagram(shortCode);
+    if (result.error) return result;
+    currentShortCode = shortCode;
+    return result.state_json;
 }
 
 function persistToLocalStorage(snapshot) {
@@ -81,6 +135,7 @@ async function persistToUrl(snapshot) {
         const encoded = await encodeStateForUrl(snapshot);
         const url = new URL(window.location.href);
         url.searchParams.set(URL_PARAM_KEY, encoded);
+        url.searchParams.delete(SHORTCODE_PARAM);
         window.history.replaceState(null, '', url.toString());
     } catch (error) {
         console.error('Failed to persist diagram state to URL', error);
@@ -88,9 +143,39 @@ async function persistToUrl(snapshot) {
 }
 
 export async function loadDiagramState() {
+    // Priority: short code > URL state > localStorage
+    const shortCodeState = await loadFromShortCode();
+    if (shortCodeState) return shortCodeState;
+
     const fromUrl = await loadFromUrl();
     if (fromUrl) return fromUrl;
     return loadFromLocalStorage();
+}
+
+async function loadFromShortCode() {
+    if (typeof window === 'undefined') return null;
+    const url = new URL(window.location.href);
+    const shortCode = url.searchParams.get(SHORTCODE_PARAM);
+    if (!shortCode) return null;
+
+    // Need to be logged in to load from database
+    if (!isLoggedIn()) {
+        // Store the short code so we can load after login
+        window._pendingShortCode = shortCode;
+        return null;
+    }
+
+    try {
+        const result = await loadFromDatabase(shortCode);
+        if (result?.error === 'auth_required') {
+            window._pendingShortCode = shortCode;
+            return null;
+        }
+        return result;
+    } catch (err) {
+        console.error('Failed to load diagram from database:', err);
+        return null;
+    }
 }
 
 export function clearPersistedDiagramState() {
@@ -103,11 +188,13 @@ export function clearPersistedDiagramState() {
         try {
             const url = new URL(window.location.href);
             url.searchParams.delete(URL_PARAM_KEY);
+            url.searchParams.delete(SHORTCODE_PARAM);
             window.history.replaceState(null, '', url.toString());
         } catch (error) {
             console.error('Failed to clear diagram state from URL', error);
         }
     }
+    currentShortCode = null;
 }
 
 function loadFromLocalStorage() {
@@ -208,4 +295,3 @@ function fromBase64Url(str) {
     }
     return bytes;
 }
-
