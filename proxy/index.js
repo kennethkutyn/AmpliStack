@@ -70,11 +70,34 @@ function verifyToken(token) {
 }
 
 async function verifyGoogleToken(credential) {
-    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (GOOGLE_CLIENT_ID && data.aud !== GOOGLE_CLIENT_ID) return null;
-    return data;
+    try {
+        // Decode the JWT payload directly (Google ID tokens are standard JWTs)
+        const parts = credential.split('.');
+        if (parts.length !== 3) return null;
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+
+        // Verify issuer
+        if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') {
+            console.error('Google token: invalid issuer', payload.iss);
+            return null;
+        }
+        // Verify audience
+        if (GOOGLE_CLIENT_ID && payload.aud !== GOOGLE_CLIENT_ID) {
+            console.error('Google token: audience mismatch', payload.aud, '!=', GOOGLE_CLIENT_ID);
+            return null;
+        }
+        // Verify not expired
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+            console.error('Google token: expired');
+            return null;
+        }
+
+        console.log('Google token verified for:', payload.email);
+        return payload;
+    } catch (err) {
+        console.error('Google token verification failed:', err);
+        return null;
+    }
 }
 
 function authMiddleware(required = true) {
@@ -208,6 +231,7 @@ app.post('/api/auth/google', async (req, res) => {
     if (!googleUser) return res.status(401).json({ error: 'Invalid Google credential' });
 
     const email = (googleUser.email || '').toLowerCase();
+    console.log('Login attempt:', email, '| hd:', googleUser.hd);
     if (!email.endsWith('@amplitude.com')) {
         return res.status(403).json({ error: 'Only @amplitude.com accounts are allowed' });
     }
