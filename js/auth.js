@@ -62,37 +62,51 @@ export function logout() {
     notifyAuthChange();
 }
 
-export function initGoogleSignIn(buttonEl) {
+let googleInitialized = false;
+
+function doGoogleInit(buttonEl) {
     const clientId = window.AMPLISTACK_GOOGLE_CLIENT_ID;
-    if (!clientId) {
-        console.warn('Google Client ID not configured (window.AMPLISTACK_GOOGLE_CLIENT_ID)');
-        return;
+    if (!clientId || !window.google?.accounts?.id) return false;
+
+    if (!googleInitialized) {
+        window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (response) => {
+                try {
+                    await handleGoogleCredential(response.credential);
+                } catch (err) {
+                    console.error('Google login failed:', err);
+                    alert('Login failed. Only @amplitude.com accounts are allowed.');
+                }
+            },
+            hosted_domain: 'amplitude.com',
+            auto_select: false
+        });
+        googleInitialized = true;
     }
-    if (!window.google?.accounts?.id) {
-        console.warn('Google Identity Services not loaded');
-        return;
-    }
-    window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response) => {
-            try {
-                await handleGoogleCredential(response.credential);
-            } catch (err) {
-                console.error('Google login failed:', err);
-                alert('Login failed. Only @amplitude.com accounts are allowed.');
-            }
-        },
-        hosted_domain: 'amplitude.com',
-        auto_select: false
-    });
     window.google.accounts.id.renderButton(buttonEl, {
         type: 'standard',
         shape: 'rectangular',
         theme: 'outline',
         size: 'medium',
         text: 'signin_with',
-        width: 220
+        width: 210
     });
+    return true;
+}
+
+export function initGoogleSignIn(buttonEl) {
+    if (doGoogleInit(buttonEl)) return;
+
+    // GIS library not loaded yet — wait for it
+    const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+            clearInterval(interval);
+            doGoogleInit(buttonEl);
+        }
+    }, 200);
+    // Stop trying after 10s
+    setTimeout(() => clearInterval(interval), 10000);
 }
 
 export function renderAuthUI() {

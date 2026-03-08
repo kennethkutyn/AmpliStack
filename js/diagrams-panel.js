@@ -1,5 +1,5 @@
 import { isLoggedIn, onAuthChange } from './auth.js';
-import { listDiagrams, forkDiagram } from './api.js';
+import { listDiagrams, duplicateDiagram, deleteDiagram } from './api.js';
 import { getCurrentShortCode } from './persistence.js';
 
 let panelOpen = false;
@@ -84,7 +84,8 @@ function renderDiagramsList(list) {
                 <div class="diagram-card-meta">${date} at ${time}</div>
                 <div class="diagram-card-actions">
                     <button class="diagram-card-btn open-btn" data-code="${d.short_code}" title="Open">Open</button>
-                    <button class="diagram-card-btn fork-btn" data-code="${d.short_code}" title="Fork a copy">Fork</button>
+                    <button class="diagram-card-btn duplicate-btn" data-code="${d.short_code}" title="Duplicate a copy">Duplicate</button>
+                    <button class="diagram-card-btn delete-btn" data-code="${d.short_code}" title="Delete diagram">Delete</button>
                 </div>
             </div>`;
     }).join('');
@@ -97,19 +98,37 @@ function renderDiagramsList(list) {
         });
     });
 
-    list.querySelectorAll('.fork-btn').forEach(btn => {
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const code = btn.dataset.code;
+            if (!confirm('Delete this diagram? This cannot be undone.')) return;
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Deleting...';
+                await deleteDiagram(code);
+                await refreshDiagramsList();
+            } catch (err) {
+                alert('Failed to delete diagram');
+                btn.disabled = false;
+                btn.textContent = 'Delete';
+            }
+        });
+    });
+
+    list.querySelectorAll('.duplicate-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const code = btn.dataset.code;
             try {
                 btn.disabled = true;
-                btn.textContent = 'Forking...';
-                const result = await forkDiagram(code);
+                btn.textContent = 'Duplicating...';
+                const result = await duplicateDiagram(code);
                 window.location.href = `${window.location.pathname}?d=${result.short_code}`;
             } catch (err) {
-                alert('Failed to fork diagram');
+                alert('Failed to duplicate diagram');
                 btn.disabled = false;
-                btn.textContent = 'Fork';
+                btn.textContent = 'Duplicate';
             }
         });
     });

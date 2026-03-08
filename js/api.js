@@ -49,7 +49,16 @@ export async function listDiagrams() {
     return res.json();
 }
 
-export async function forkDiagram(shortCode) {
+export async function deleteDiagram(shortCode) {
+    const res = await fetch(`${getApiBase()}/api/diagrams/${shortCode}`, {
+        method: 'DELETE',
+        headers: authHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to delete diagram');
+    return res.json();
+}
+
+export async function duplicateDiagram(shortCode) {
     const res = await fetch(`${getApiBase()}/api/diagrams/${shortCode}/fork`, {
         method: 'POST',
         headers: authHeaders()

@@ -476,16 +476,6 @@ body {
     transform: translateY(1px);
 }
 
-.ai-btn {
-    background: linear-gradient(135deg, #1E61DC 0%, #6C8FF1 100%);
-    color: var(--color-white);
-    border-color: transparent;
-}
-
-.ai-btn:hover {
-    background: linear-gradient(135deg, #1752C4 0%, #5c7ee3 100%);
-    color: var(--color-white);
-}
 
 /* Canvas Container */
 .canvas-container {
@@ -1287,15 +1277,100 @@ body {
     box-shadow: 0 5px 15px rgba(30, 97, 220, 0.25);
 }
 
-/* Auth Section */
-.auth-section {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--color-gray-200);
-    background: var(--color-gray-50);
+/* Menu Button & Dropdown */
+.sidebar-header {
+    position: relative;
+}
+
+.menu-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 48px;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--color-gray-500);
+    transition: all 0.15s ease;
+    margin-left: auto;
+}
+
+.menu-btn:hover {
+    background: var(--color-gray-50);
+    border-color: var(--color-gray-300);
+    color: var(--color-gray-700);
+}
+
+.menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 8px;
+    right: 8px;
+    background: var(--color-white);
+    border: 1px solid var(--color-gray-200);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    padding: 6px 0;
+    z-index: 300;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.menu-dropdown.open {
+    display: block;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 14px;
+    background: transparent;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--color-gray-700);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+    text-align: left;
+}
+
+.menu-item:hover {
+    background: var(--color-gray-50);
+    color: var(--color-gray-900);
+}
+
+.menu-item svg {
+    flex-shrink: 0;
+    color: var(--color-gray-400);
+}
+
+.menu-item:hover svg {
+    color: var(--color-gray-600);
+}
+
+.menu-divider {
+    height: 1px;
+    background: var(--color-gray-200);
+    margin: 4px 0;
+}
+
+.menu-label {
+    padding: 6px 14px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-gray-400);
+}
+
+.menu-auth {
+    padding: 8px 14px;
 }
 
 .auth-user {
@@ -1343,17 +1418,6 @@ body {
     color: #DC2626;
 }
 
-/* Save button */
-.save-btn {
-    background: linear-gradient(135deg, #059669 0%, #34D399 100%);
-    color: var(--color-white);
-    border-color: transparent;
-}
-
-.save-btn:hover {
-    background: linear-gradient(135deg, #047857 0%, #2CC98C 100%);
-    color: var(--color-white);
-}
 
 /* Diagrams Panel (right-side slide-over) */
 .diagrams-panel-overlay {
@@ -1527,6 +1591,12 @@ body {
     cursor: not-allowed;
 }
 
+.diagram-card-btn.delete-btn:hover {
+    background: #FEE2E2;
+    border-color: #FCA5A5;
+    color: #DC2626;
+}
+
 .diagram-card-btn.open-btn:hover {
     background: var(--color-primary);
     color: var(--color-white);
@@ -1546,6 +1616,41 @@ body {
     font-size: 14px;
     color: #92400E;
     z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.auth-banner-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+}
+
+.auth-banner-login {
+    background: var(--color-primary);
+    color: var(--color-white);
+}
+
+.auth-banner-login:hover {
+    background: var(--color-primary-hover);
+}
+
+.auth-banner-dismiss {
+    background: transparent;
+    color: #92400E;
+    border: 1px solid #D97706;
+}
+
+.auth-banner-dismiss:hover {
+    background: #FDE68A;
 }
 
 /* Responsive adjustments */

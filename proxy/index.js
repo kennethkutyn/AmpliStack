@@ -414,7 +414,28 @@ app.put('/api/diagrams/:shortCode', authMiddleware(true), async (req, res) => {
     }
 });
 
-// Fork diagram
+// Delete diagram (owner only)
+app.delete('/api/diagrams/:shortCode', authMiddleware(true), async (req, res) => {
+    try {
+        const diagram = await pool.query(
+            'SELECT * FROM diagrams WHERE short_code = $1',
+            [req.params.shortCode]
+        );
+        if (diagram.rows.length === 0) return res.status(404).json({ error: 'Diagram not found' });
+        if (diagram.rows[0].owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Only the owner can delete this diagram' });
+        }
+
+        await pool.query('DELETE FROM diagram_access WHERE diagram_id = $1', [diagram.rows[0].id]);
+        await pool.query('DELETE FROM diagrams WHERE id = $1', [diagram.rows[0].id]);
+        res.json({ ok: true });
+    } catch (err) {
+        console.error('Delete diagram error:', err);
+        res.status(500).json({ error: 'Failed to delete diagram' });
+    }
+});
+
+// Duplicate diagram
 app.post('/api/diagrams/:shortCode/fork', authMiddleware(true), async (req, res) => {
     try {
         const original = await pool.query(
