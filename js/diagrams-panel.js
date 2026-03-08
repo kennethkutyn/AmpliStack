@@ -1,4 +1,5 @@
 import { isLoggedIn, onAuthChange } from './auth.js';
+import { trackOpenDiagram } from './analytics.js';
 import { listDiagrams, duplicateDiagram, deleteDiagram } from './api.js';
 import { getCurrentShortCode } from './persistence.js';
 
@@ -94,6 +95,9 @@ function renderDiagramsList(list) {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const code = btn.dataset.code;
+            const card = btn.closest('.diagram-card');
+            const title = card?.querySelector('.diagram-card-title')?.textContent || 'Untitled Diagram';
+            trackOpenDiagram(title);
             window.location.href = `${window.location.pathname}?d=${code}`;
         });
     });
@@ -102,14 +106,18 @@ function renderDiagramsList(list) {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const code = btn.dataset.code;
-            if (!confirm('Delete this diagram? This cannot be undone.')) return;
+            const confirmed = await showConfirmDialog(
+                'Delete diagram?',
+                'This diagram will be permanently deleted. This cannot be undone.'
+            );
+            if (!confirmed) return;
             try {
                 btn.disabled = true;
                 btn.textContent = 'Deleting...';
                 await deleteDiagram(code);
                 await refreshDiagramsList();
             } catch (err) {
-                alert('Failed to delete diagram');
+                showConfirmDialog('Delete failed', 'Could not delete this diagram. Please try again.', true);
                 btn.disabled = false;
                 btn.textContent = 'Delete';
             }
@@ -131,6 +139,44 @@ function renderDiagramsList(list) {
                 btn.textContent = 'Duplicate';
             }
         });
+    });
+}
+
+function showConfirmDialog(title, message, infoOnly = false) {
+    return new Promise((resolve) => {
+        const dialog = document.getElementById('confirm-dialog');
+        const titleEl = document.getElementById('confirm-dialog-title');
+        const messageEl = document.getElementById('confirm-dialog-message');
+        const cancelBtn = document.getElementById('confirm-dialog-cancel');
+        const confirmBtn = document.getElementById('confirm-dialog-confirm');
+        if (!dialog) { resolve(!infoOnly && confirm(message)); return; }
+
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+
+        if (infoOnly) {
+            cancelBtn.style.display = 'none';
+            confirmBtn.textContent = 'OK';
+            confirmBtn.className = 'confirm-dialog__btn confirm-dialog__btn--cancel';
+        } else {
+            cancelBtn.style.display = '';
+            confirmBtn.textContent = 'Delete';
+            confirmBtn.className = 'confirm-dialog__btn confirm-dialog__btn--confirm';
+        }
+
+        dialog.hidden = false;
+
+        function cleanup(result) {
+            dialog.hidden = true;
+            cancelBtn.removeEventListener('click', onCancel);
+            confirmBtn.removeEventListener('click', onConfirm);
+            resolve(result);
+        }
+        function onCancel() { cleanup(false); }
+        function onConfirm() { cleanup(true); }
+
+        cancelBtn.addEventListener('click', onCancel);
+        confirmBtn.addEventListener('click', onConfirm);
     });
 }
 

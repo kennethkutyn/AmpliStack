@@ -1,3 +1,5 @@
+import { trackLoggedIn, trackLoggedOut } from './analytics.js';
+
 const TOKEN_KEY = 'amplistack-auth-token';
 const USER_KEY = 'amplistack-auth-user';
 
@@ -50,11 +52,13 @@ export async function handleGoogleCredential(credential) {
     currentUser = data.user;
     localStorage.setItem(TOKEN_KEY, authToken);
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    trackLoggedIn(currentUser.name);
     notifyAuthChange();
     return currentUser;
 }
 
 export function logout() {
+    trackLoggedOut();
     currentUser = null;
     authToken = null;
     localStorage.removeItem(TOKEN_KEY);

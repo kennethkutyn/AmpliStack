@@ -9,6 +9,7 @@ import { persistDiagramState, saveToDatabase, getCurrentShortCode, loadFromDatab
 import { initAiButton } from './js/ai.js';
 import { restoreSession, onAuthChange, isLoggedIn, renderAuthUI, initGoogleSignIn } from './js/auth.js';
 import { initDiagramsPanel } from './js/diagrams-panel.js';
+import { trackSaveDiagram } from './js/analytics.js';
 
 const LAST_EDITED_STORAGE_KEY = 'amplistack:lastEditedAt';
 
@@ -89,6 +90,7 @@ function setupSaveButton() {
             saveBtn.disabled = true;
             saveBtn.querySelector('span').textContent = 'Saving...';
             await saveToDatabase();
+            trackSaveDiagram(document.getElementById('diagram-title')?.textContent?.trim() || 'Untitled Diagram');
             saveBtn.querySelector('span').textContent = 'Saved!';
             setTimeout(() => {
                 saveBtn.querySelector('span').textContent = getCurrentShortCode() ? 'Save' : 'Save';

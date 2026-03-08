@@ -43,7 +43,7 @@ import {
     parseCustomConnectionKey,
     renderConnections
 } from './connections.js';
-import { trackAppLaunched, trackExportButtonClick, trackNodeAdded } from './analytics.js';
+import { trackAppLaunched, trackExportButtonClick, trackNodeAdded, trackOpenedTemplate } from './analytics.js';
 import {
     clearPersistedDiagramState,
     loadDiagramState,
@@ -917,6 +917,7 @@ function initTemplateButtons() {
             const template = btn.dataset.template;
             const url = TEMPLATE_URLS[template];
             if (url) {
+                trackOpenedTemplate(btn.textContent.trim());
                 window.location.href = url;
             }
         });

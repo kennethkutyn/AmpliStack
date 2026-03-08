@@ -238,6 +238,16 @@
         // Set your Google OAuth Client ID here:
         window.AMPLISTACK_GOOGLE_CLIENT_ID = '879273734608-1mhhs92c9dbdqvs2jc4plq3f62pn2ao4.apps.googleusercontent.com';
     </script>
+    <div class="confirm-dialog" id="confirm-dialog" role="dialog" aria-modal="true" hidden>
+        <div class="confirm-dialog__content">
+            <h3 class="confirm-dialog__title" id="confirm-dialog-title">Are you sure?</h3>
+            <p class="confirm-dialog__message" id="confirm-dialog-message"></p>
+            <div class="confirm-dialog__actions">
+                <button type="button" class="confirm-dialog__btn confirm-dialog__btn--cancel" id="confirm-dialog-cancel">Cancel</button>
+                <button type="button" class="confirm-dialog__btn confirm-dialog__btn--confirm" id="confirm-dialog-confirm">Delete</button>
+            </div>
+        </div>
+    </div>
     <div class="ai-dialog" id="ai-dialog" role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title" hidden>
         <div class="ai-dialog__content">
             <h2 id="ai-dialog-title">Generate with AI</h2>
