@@ -1,4 +1,5 @@
 import { trackLoggedIn, trackLoggedOut } from './analytics.js';
+import { showToast } from './toast.js';
 
 const TOKEN_KEY = 'amplistack-auth-token';
 const USER_KEY = 'amplistack-auth-user';
@@ -53,12 +54,14 @@ export async function handleGoogleCredential(credential) {
     localStorage.setItem(TOKEN_KEY, authToken);
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
     trackLoggedIn(currentUser.name);
+    showToast(`Signed in as ${currentUser.name}`);
     notifyAuthChange();
     return currentUser;
 }
 
 export function logout() {
     trackLoggedOut();
+    showToast('Signed out');
     currentUser = null;
     authToken = null;
     localStorage.removeItem(TOKEN_KEY);

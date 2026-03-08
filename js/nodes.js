@@ -44,6 +44,7 @@ import {
     renderConnections
 } from './connections.js';
 import { trackAppLaunched, trackExportButtonClick, trackNodeAdded, trackOpenedTemplate } from './analytics.js';
+import { showToast } from './toast.js';
 import {
     clearPersistedDiagramState,
     loadDiagramState,
@@ -898,6 +899,7 @@ function initCopyLinkButton() {
             await persistDiagramState();
             const url = new URL(window.location.href);
             await navigator.clipboard.writeText(url.toString());
+            showToast('Link copied');
         } catch (error) {
             console.error('Failed to copy link', error);
         }
