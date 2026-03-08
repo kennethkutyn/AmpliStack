@@ -55,15 +55,15 @@ export function trackOpenedTemplate(templateName) {
 export function trackLoggedIn(name) {
     try {
         const amp = window?.amplitude;
+        if (amp?.setUserId) {
+            amp.setUserId(name);
+        } else if (amp?.getInstance) {
+            amp.getInstance().setUserId?.(name);
+        }
         if (amp?.track) {
             amp.track('Logged In');
         } else if (amp?.getInstance) {
             amp.getInstance().logEvent?.('Logged In');
-        }
-        // Set user property
-        const identify = new window.amplitude.Identify().set('name', name);
-        if (amp?.identify) {
-            amp.identify(identify);
         }
     } catch (err) {
         console.warn('Failed to track Logged In', err);

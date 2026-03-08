@@ -31,6 +31,9 @@ export function restoreSession() {
         if (token && user) {
             authToken = token;
             currentUser = JSON.parse(user);
+            // Re-set Amplitude user ID for returning sessions
+            const amp = window?.amplitude;
+            if (amp?.setUserId) amp.setUserId(currentUser.name);
             notifyAuthChange();
         }
     } catch {
@@ -62,6 +65,8 @@ export async function handleGoogleCredential(credential) {
 export function logout() {
     trackLoggedOut();
     showToast('Signed out');
+    const amp = window?.amplitude;
+    if (amp?.setUserId) amp.setUserId(null);
     currentUser = null;
     authToken = null;
     localStorage.removeItem(TOKEN_KEY);
