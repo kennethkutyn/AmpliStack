@@ -86,7 +86,7 @@ function renderDiagramsList(list) {
                 <div class="diagram-card-actions">
                     <button class="diagram-card-btn open-btn" data-code="${d.short_code}" title="Open">Open</button>
                     <button class="diagram-card-btn duplicate-btn" data-code="${d.short_code}" title="Duplicate a copy">Duplicate</button>
-                    <button class="diagram-card-btn delete-btn" data-code="${d.short_code}" title="Delete diagram">Delete</button>
+                    ${isOwner ? `<button class="diagram-card-btn delete-btn" data-code="${d.short_code}" title="Delete diagram">Delete</button>` : ''}
                 </div>
             </div>`;
     }).join('');
