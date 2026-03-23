@@ -626,7 +626,7 @@ body {
     transition: opacity 0.15s ease;
 }
 
-.layer-content.slot-guides-visible .slot-guide-layer {
+.layer-content.slot--visible .slot-guide-layer {
     opacity: 1;
 }
 
@@ -1139,8 +1139,16 @@ body {
 }
 
 .connection-layer path {
+    pointer-events: none;
+}
+
+.connection-layer path.connection-hit-area {
     pointer-events: auto;
     cursor: pointer;
+}
+
+.connection-layer path.connection-hover {
+    filter: drop-shadow(0 0 4px rgba(96, 165, 250, 0.9)) drop-shadow(0 0 8px rgba(96, 165, 250, 0.55));
 }
 
 .connection-layer .connection-label {

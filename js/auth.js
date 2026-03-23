@@ -145,10 +145,6 @@ export function renderAuthUI() {
         if (btn) initGoogleSignIn(btn);
     }
 
-    // Show/hide save button
-    const saveBtn = document.getElementById('save-btn');
-    if (saveBtn) saveBtn.style.display = isLoggedIn() ? '' : 'none';
-
     // Show/hide my diagrams button
     const diagramsBtn = document.getElementById('my-diagrams-btn');
     if (diagramsBtn) diagramsBtn.style.display = isLoggedIn() ? '' : 'none';

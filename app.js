@@ -11,6 +11,7 @@ import { restoreSession, onAuthChange, isLoggedIn, renderAuthUI, initGoogleSignI
 import { initDiagramsPanel } from './js/diagrams-panel.js';
 import { trackSaveDiagram } from './js/analytics.js';
 import { showToast } from './js/toast.js';
+import { exportToExcalidraw } from './js/excalidraw-export.js';
 
 const LAST_EDITED_STORAGE_KEY = 'amplistack:lastEditedAt';
 
@@ -86,7 +87,11 @@ function setupSaveButton() {
     if (!saveBtn) return;
 
     saveBtn.addEventListener('click', async () => {
-        if (!isLoggedIn()) return;
+        if (!isLoggedIn()) {
+            window._pendingSave = true;
+            showToast('Please login to save your diagram');
+            return;
+        }
         try {
             saveBtn.disabled = true;
             saveBtn.querySelector('span').textContent = 'Saving...';
@@ -180,6 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
         initMenuDropdown();
         initAiButton();
         await initializeApp();
+
+        document.getElementById('excalidraw-export-btn')?.addEventListener('click', () => {
+            exportToExcalidraw();
+        });
         setupLastEdited();
         setupSaveButton();
         initDiagramsPanel();
@@ -195,6 +204,16 @@ document.addEventListener('DOMContentLoaded', () => {
             hideAuthRequiredBanner();
             // Close menu dropdown on login/logout
             document.getElementById('menu-dropdown')?.classList.remove('open');
+            if (user && window._pendingSave) {
+                delete window._pendingSave;
+                try {
+                    await saveToDatabase();
+                    trackSaveDiagram(document.getElementById('diagram-title')?.textContent?.trim() || 'Untitled Diagram');
+                    showToast('Diagram saved');
+                } catch (err) {
+                    console.error('Save after login failed:', err);
+                }
+            }
             if (user && window._pendingShortCode) {
                 const shortCode = window._pendingShortCode;
                 delete window._pendingShortCode;

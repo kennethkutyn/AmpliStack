@@ -187,12 +187,26 @@ export function renderConnections() {
     updateAdjacencyHighlights(highlightLayer, canvasRect, connectedPairs);
 
     connections.forEach(path => {
-        path.addEventListener('contextmenu', (event) => {
+        // Create a wider invisible hit area behind the visible path for easier clicking
+        const hitArea = document.createElementNS(SVG_NS, 'path');
+        hitArea.setAttribute('d', path.getAttribute('d'));
+        hitArea.setAttribute('fill', 'none');
+        hitArea.setAttribute('stroke', 'transparent');
+        hitArea.setAttribute('stroke-width', '20');
+        hitArea.setAttribute('stroke-linejoin', 'round');
+        hitArea.setAttribute('stroke-linecap', 'round');
+        hitArea.classList.add('connection-hit-area');
+        svg.insertBefore(hitArea, path);
+
+        hitArea.addEventListener('mouseenter', () => path.classList.add('connection-hover'));
+        hitArea.addEventListener('mouseleave', () => path.classList.remove('connection-hover'));
+
+        hitArea.addEventListener('contextmenu', (event) => {
             event.preventDefault();
             event.stopPropagation();
             showConnectionContextMenu(event, path.dataset.connectionKey || '');
         });
-        path.addEventListener('click', () => {
+        hitArea.addEventListener('click', () => {
             const key = path.dataset.connectionKey;
             if (key) {
                 dismissedConnections.add(key);
@@ -202,6 +216,7 @@ export function renderConnections() {
                 dottedConnections.delete(key);
                 setAnnotationValue(key, '', { sourceId: path.dataset?.sourceId, targetId: path.dataset?.targetId });
             }
+            hitArea.remove();
             path.remove();
             void persistDiagramState();
         }, { once: true });
@@ -1036,7 +1051,9 @@ function renderAnnotationForPath(svg, path, connectionKey) {
     const targetId = path.dataset?.targetId;
     const text = getAnnotationValue(connectionKey, sourceId, targetId);
     if (!text) {
-        restoreDefaultLabelForPath(path, connectionKey);
+        if (!hasAnnotationEntry(connectionKey, sourceId, targetId)) {
+            restoreDefaultLabelForPath(path, connectionKey);
+        }
         return;
     }
     removeDefaultConnectionLabels(connectionKey);
@@ -1118,23 +1135,33 @@ function getPairKey(sourceId, targetId) {
     return `${sourceId}->${targetId}`;
 }
 
+const ANNOTATION_NONE = '__none__';
+
 function getAnnotationValue(connectionKey, sourceId, targetId) {
-    if (connectionAnnotations[connectionKey]) return connectionAnnotations[connectionKey];
+    const val = connectionAnnotations[connectionKey]
+        || (getPairKey(sourceId, targetId) && connectionAnnotations[getPairKey(sourceId, targetId)])
+        || '';
+    return val === ANNOTATION_NONE ? '' : val;
+}
+
+function hasAnnotationEntry(connectionKey, sourceId, targetId) {
     const pairKey = getPairKey(sourceId, targetId);
-    if (pairKey && connectionAnnotations[pairKey]) return connectionAnnotations[pairKey];
-    return '';
+    return Boolean(connectionAnnotations[connectionKey] || (pairKey && connectionAnnotations[pairKey]));
 }
 
 function hasAnnotation(connectionKey, sourceId, targetId) {
-    return Boolean(getAnnotationValue(connectionKey, sourceId, targetId));
+    return hasAnnotationEntry(connectionKey, sourceId, targetId);
 }
 
-function setAnnotationValue(connectionKey, value, { sourceId, targetId } = {}) {
+function setAnnotationValue(connectionKey, value, { sourceId, targetId, clearExplicit } = {}) {
     const trimmed = (value || '').trim();
     const pairKey = getPairKey(sourceId, targetId);
     if (trimmed) {
         connectionAnnotations[connectionKey] = trimmed;
         if (pairKey) connectionAnnotations[pairKey] = trimmed;
+    } else if (clearExplicit) {
+        connectionAnnotations[connectionKey] = ANNOTATION_NONE;
+        if (pairKey) connectionAnnotations[pairKey] = ANNOTATION_NONE;
     } else {
         delete connectionAnnotations[connectionKey];
         if (pairKey) delete connectionAnnotations[pairKey];
@@ -1152,7 +1179,8 @@ function openInlineAnnotationEditor(connectionKey) {
     const targetId = path?.dataset?.targetId || '';
     editor.dataset.sourceId = sourceId;
     editor.dataset.targetId = targetId;
-    const existing = getAnnotationValue(connectionKey, sourceId, targetId) || getConnectionExistingLabelText(connectionKey);
+    const annotationSet = hasAnnotationEntry(connectionKey, sourceId, targetId);
+    const existing = annotationSet ? getAnnotationValue(connectionKey, sourceId, targetId) : getConnectionExistingLabelText(connectionKey);
     editor.value = existing;
     positionAnnotationEditor();
     editor.classList.add('visible');
@@ -1195,7 +1223,7 @@ function handleAnnotationInput(event) {
     const value = event.target.value || '';
     const sourceId = annotationEditor?.dataset?.sourceId;
     const targetId = annotationEditor?.dataset?.targetId;
-    setAnnotationValue(activeAnnotationKey, value, { sourceId, targetId });
+    setAnnotationValue(activeAnnotationKey, value, { sourceId, targetId, clearExplicit: !value.trim() });
     updateConnectionAnnotation(activeAnnotationKey);
 }
 
@@ -1211,10 +1239,8 @@ function handleAnnotationBlur() {
         const value = annotationEditor?.value || '';
         const sourceId = annotationEditor?.dataset?.sourceId;
         const targetId = annotationEditor?.dataset?.targetId;
-        setAnnotationValue(activeAnnotationKey, value, { sourceId, targetId });
-        if (!value.trim()) {
-            updateConnectionAnnotation(activeAnnotationKey, { restoreDefaults: true });
-        }
+        setAnnotationValue(activeAnnotationKey, value, { sourceId, targetId, clearExplicit: !value.trim() });
+        updateConnectionAnnotation(activeAnnotationKey);
         void persistDiagramState();
     }
     closeInlineAnnotationEditor();

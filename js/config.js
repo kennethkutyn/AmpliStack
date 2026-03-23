@@ -56,6 +56,10 @@ export const categories = {
         name: 'Activation',
         layer: 'activation',
         items: [
+            { id: 'amp-gs', name: 'Guides & Surveys', icon: 'amplitude' },
+            { id: 'amp-webexp', name: 'Web Experiment', icon: 'amplitude' },
+            { id: 'amp-feaexp', name: 'Feature Experiment', icon: 'amplitude' },
+            { id: 'amp-assistant', name: 'Amplitude Assistant', icon: 'amplitude' },
             { id: 'braze', name: 'Braze', icon: 'braze' },
             { id: 'iterable', name: 'Iterable', icon: 'iterable' },
             { id: 'salesforce', name: 'Salesforce', icon: 'salesforce' },
@@ -237,6 +241,10 @@ export const icons = {
     'hubspot': `<img src="assets/hubspot.png" alt="hubspot logo" width="20" height="20" style="display:block;" />`,
     'marketo': `<img src="assets/marketo.webp" alt="marketo logo" width="20" height="20" style="display:block;" />`,
     'intercom': `<img src="assets/intercom.svg" alt="intercom logo" width="20" height="20" style="display:block;" />`,
+    'amp-gs': `<img src="assets/amplitude.svg" alt="amplitude logo" width="20" height="20" style="display:block;" />`,
+    'amp-webexp': `<img src="assets/amplitude.svg" alt="amplitude logo" width="20" height="20" style="display:block;" />`,
+    'amp-feaexp': `<img src="assets/amplitude.svg" alt="amplitude logo" width="20" height="20" style="display:block;" />`,
+    'amp-assistant': `<img src="assets/amplitude.svg" alt="amplitude logo" width="20" height="20" style="display:block;" />`,
 
     // Custom entry icon
     'custom': `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -292,7 +300,13 @@ export const globalConnectionRules = [
             { targetIds: ['bi', 'llm'] }
         ]
     },
-    { from: { ids: cdpLikeSourceIds }, to: { category: 'activation' } },
+    {
+        from: { ids: cdpLikeSourceIds },
+        to: { category: 'activation' },
+        exclusions: [
+            { targetIds: ['amp-gs', 'amp-webexp', 'amp-feaexp', 'amp-assistant'] }
+        ]
+    },
     { from: { ids: ['amplitude-analytics'] }, to: { ids: ['llm'] } },
     { from: { ids: ['amplitude-analytics'] }, to: { ids: primaryWarehouseNodeIds } },
     { from: { ids: ['amplitude-analytics'] }, to: { category: 'activation' } },
