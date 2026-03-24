@@ -6,6 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import OpenAI from 'openai';
 import pg from 'pg';
+import { mountMcp } from './mcp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, '.env') });
@@ -476,6 +477,10 @@ app.post('/api/diagrams/:shortCode/fork', authMiddleware(true), async (req, res)
         res.status(500).json({ error: 'Failed to fork diagram' });
     }
 });
+
+// --- MCP server ---
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || 'https://kennethkutyn.github.io/AmpliStack';
+mountMcp(app, { openai, openaiModel: OPENAI_MODEL, baseUrl: FRONTEND_BASE_URL });
 
 // --- Start server ---
 (async () => {
