@@ -7,7 +7,6 @@ import {
     CONNECTION_COLOR,
     EVENT_STREAM_LABEL_TEXT,
     HORIZONTAL_PROXIMITY_THRESHOLD,
-    LAYER_SEQUENCE,
     MCP_LABEL_TEXT,
     MAX_COLUMN_DELTA_FOR_ADJACENCY,
     MAX_ROW_DELTA_FOR_ADJACENCY,
@@ -24,7 +23,8 @@ import {
     connectionAnnotations,
     customConnections,
     dismissedConnections,
-    dottedConnections
+    dottedConnections,
+    getLayerSequence
 } from './state.js';
 import { ensureLayerSlots } from './layout.js';
 import { persistDiagramState } from './persistence.js';
@@ -417,8 +417,8 @@ function areNodesVisuallyAdjacent(nodeA, nodeB) {
     if (layerA === layerB) {
         return areRowsClose(nodeA, nodeB) && areColumnsClose(nodeA, nodeB);
     }
-    const indexA = LAYER_SEQUENCE.indexOf(layerA);
-    const indexB = LAYER_SEQUENCE.indexOf(layerB);
+    const indexA = getLayerSequence().indexOf(layerA);
+    const indexB = getLayerSequence().indexOf(layerB);
     if (indexA === -1 || indexB === -1) return false;
     return Math.abs(indexA - indexB) === 1 && areColumnsClose(nodeA, nodeB);
 }

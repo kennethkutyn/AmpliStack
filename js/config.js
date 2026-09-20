@@ -86,7 +86,16 @@ export const leftMostPriorityMap = {
 export const SLOT_COLUMNS = 6;
 export const DROP_ZONE_HORIZONTAL_PADDING = 48;
 export const DROP_ZONE_VERTICAL_PADDING = 64;
-export const LAYER_SEQUENCE = ['marketing', 'experiences', 'sources', 'analysis', 'activation'];
+export const DEFAULT_LAYER_SEQUENCE = ['marketing', 'experiences', 'sources', 'analysis', 'activation'];
+export const LAYER_SEQUENCE = DEFAULT_LAYER_SEQUENCE;
+export const DEFAULT_CUSTOM_LANE_NAME = 'New Lane';
+export const CUSTOM_LANE_PALETTES = [
+    { bg: '#FFE8D6', border: '#F4A261', accent: '#E76F51' },
+    { bg: '#E8F6F3', border: '#80CBC4', accent: '#00897B' },
+    { bg: '#F3E8FF', border: '#CE93D8', accent: '#8E24AA' },
+    { bg: '#FFF3E0', border: '#FFB74D', accent: '#F57C00' },
+    { bg: '#E3F2FD', border: '#90CAF9', accent: '#1565C0' }
+];
 export const AMP_ADJACENCY_SOURCE_ID = 'amplitude-sdk';
 export const AMP_ADJACENCY_TARGET_IDS = ['segment', 'tealium', 'cdp'];
 export const MAX_COLUMN_DELTA_FOR_ADJACENCY = 1;
