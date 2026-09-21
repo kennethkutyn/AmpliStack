@@ -183,7 +183,10 @@ export function exportToExcalidraw() {
     const layers = canvas.querySelectorAll('.layer');
     layers.forEach(layer => {
         const layerKey = layer.dataset.layer;
-        const colors = LAYER_COLORS[layerKey] || { bg: '#f0f0f0', border: '#cccccc' };
+        const colors = LAYER_COLORS[layerKey] || {
+            bg: getComputedStyle(layer).backgroundColor || '#f0f0f0',
+            border: getComputedStyle(layer).borderColor || '#cccccc'
+        };
         const rect = layer.getBoundingClientRect();
         const x = rect.left - canvasRect.left;
         const y = rect.top - canvasRect.top;
@@ -219,7 +222,9 @@ export function exportToExcalidraw() {
     const nodes = canvas.querySelectorAll('.diagram-node');
     nodes.forEach(node => {
         const category = node.dataset.category;
-        const borderColor = NODE_BORDER_COLORS[category] || '#cccccc';
+        const borderColor = NODE_BORDER_COLORS[category]
+            || getComputedStyle(node).borderColor
+            || '#cccccc';
         const rect = node.getBoundingClientRect();
         const x = rect.left - canvasRect.left;
         const y = rect.top - canvasRect.top;

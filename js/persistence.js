@@ -11,6 +11,8 @@ import {
     connectionAnnotations,
     dottedConnections,
     layerOrder,
+    layerNames,
+    customLayers,
     nodeNotes
 } from './state.js';
 import { isLoggedIn } from './auth.js';
@@ -58,6 +60,8 @@ export function serializeDiagramState() {
         activeModel,
         diagramTitle,
         lastEditedAt,
+        layerNames: { ...layerNames },
+        customLayers: customLayers.map(layer => ({ ...layer })),
         addedItems: mapSetsToArrays(addedItems),
         customEntries: cloneCustomEntries(),
         layerOrder: cloneLayerOrder(),

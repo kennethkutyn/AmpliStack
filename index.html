@@ -193,29 +193,37 @@
             </div>
             <div class="canvas">
                 <div class="layer layer-marketing" data-layer="marketing">
-                    <div class="layer-label">Marketing Channels</div>
+                    <div class="layer-label" contenteditable="true" role="textbox" spellcheck="false" aria-label="Marketing Channels lane name">Marketing Channels</div>
                     <div class="layer-content"></div>
                 </div>
 
                 <div class="layer layer-experiences" data-layer="experiences">
-                    <div class="layer-label">Owned Experiences</div>
+                    <div class="layer-label" contenteditable="true" role="textbox" spellcheck="false" aria-label="Owned Experiences lane name">Owned Experiences</div>
                     <div class="layer-content"></div>
                 </div>
 
                 <div class="layer layer-sources" data-layer="sources">
-                    <div class="layer-label">Data Sources</div>
+                    <div class="layer-label" contenteditable="true" role="textbox" spellcheck="false" aria-label="Data Sources lane name">Data Sources</div>
                     <div class="layer-content"></div>
                 </div>
 
                 <div class="layer layer-analysis" data-layer="analysis">
-                    <div class="layer-label">Analysis / Warehouse</div>
+                    <div class="layer-label" contenteditable="true" role="textbox" spellcheck="false" aria-label="Analysis / Warehouse lane name">Analysis / Warehouse</div>
                     <div class="layer-content"></div>
                 </div>
 
                 <div class="layer layer-activation" data-layer="activation">
-                    <div class="layer-label">Activation</div>
+                    <div class="layer-label" contenteditable="true" role="textbox" spellcheck="false" aria-label="Activation lane name">Activation</div>
                     <div class="layer-content"></div>
                 </div>
+
+                <button type="button" class="add-lane-btn" id="add-lane-btn" aria-label="Add swim lane">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>Add swim lane</span>
+                </button>
 
             </div>
         </main>

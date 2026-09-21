@@ -4,7 +4,8 @@ import {
     categories,
     icons,
     itemCategoryIndex,
-    modelAutoConfig
+    modelAutoConfig,
+    DEFAULT_CUSTOM_LANE_NAME
 } from './config.js';
 import {
     activeCategory,
@@ -15,17 +16,27 @@ import {
     diagramTitle,
     customConnections,
     customEntries,
+    customLayers,
     dismissedConnections,
     connectionAnnotations,
     dottedConnections,
     nodeNotes,
     getNextCustomEntryId,
     resetCustomEntryCounter,
+    layerNames,
     layerOrder,
     setActiveCategory,
     setActiveModel,
     setDiagramTitle,
-    setLastEditedAt
+    setLastEditedAt,
+    setLayerName,
+    applyStoredLayerNames,
+    resetLayerNames,
+    registerCustomLayer,
+    resetCustomLayers,
+    unregisterCustomLayer,
+    getCustomLanePalette,
+    isBuiltInLayer
 } from './state.js';
 import {
     assignNodeSlot,
@@ -88,11 +99,15 @@ export function initModelPicker() {
 }
 
 export function initLayerDragTargets() {
-    document.querySelectorAll('.layer').forEach(layer => {
-        layer.addEventListener('dragover', handleLayerDragOver);
-        layer.addEventListener('dragleave', handleLayerDragLeave);
-        layer.addEventListener('drop', handleLayerDrop);
-    });
+    document.querySelectorAll('.layer').forEach(bindLayerDragTarget);
+}
+
+function bindLayerDragTarget(layer) {
+    if (!layer || layer.dataset.dragBound === 'true') return;
+    layer.dataset.dragBound = 'true';
+    layer.addEventListener('dragover', handleLayerDragOver);
+    layer.addEventListener('dragleave', handleLayerDragLeave);
+    layer.addEventListener('drop', handleLayerDrop);
 }
 
 export function initCustomEntryInput() {
@@ -173,19 +188,26 @@ export function renderComponentList(category) {
     const list = document.getElementById('component-list');
     const categoryData = categories[category];
 
-    if (!list || !categoryData) return;
+    if (!list) return;
     list.innerHTML = '';
     list.dataset.category = category;
 
-    categoryData.items.forEach(item => {
+    (categoryData?.items || []).forEach(item => {
         const li = createComponentListItem(item, category, false);
         list.appendChild(li);
     });
 
-    customEntries[category].forEach(item => {
+    (customEntries[category] || []).forEach(item => {
         const li = createComponentListItem(item, category, true);
         list.appendChild(li);
     });
+
+    if (!list.children.length && !isBuiltInLayer(category)) {
+        const hint = document.createElement('li');
+        hint.className = 'component-empty-hint';
+        hint.textContent = 'Add custom entries to this lane';
+        list.appendChild(hint);
+    }
 }
 
 export function updateModelPickerState() {
@@ -217,13 +239,20 @@ function createComponentListItem(item, category, isCustom) {
     }
 
     const iconHtml = isCustom ? icons['custom'] : (icons[item.icon] || icons['amplitude']);
+    const iconClass = isBuiltInLayer(category)
+        ? `component-icon category-${category}`
+        : 'component-icon custom-lane-icon';
 
     li.innerHTML = `
-        <div class="component-icon category-${category}">
+        <div class="${iconClass}">
             ${iconHtml}
         </div>
         <span class="component-name">${item.name}</span>
     `;
+
+    if (!isBuiltInLayer(category)) {
+        applyLanePaletteToElement(li.querySelector('.component-icon'), getPaletteForCategory(category));
+    }
 
     li.addEventListener('click', () => {
         addItemToLayer(item.id, item.name, isCustom ? 'custom' : item.icon, category);
@@ -246,6 +275,7 @@ export function addCustomEntry() {
         isCustom: true
     };
 
+    if (!customEntries[activeCategory]) customEntries[activeCategory] = [];
     customEntries[activeCategory].push(entry);
     itemCategoryIndex[id] = activeCategory;
     input.value = '';
@@ -767,6 +797,8 @@ export async function initializeApp() {
     initCustomEntryInput();
     initModelPicker();
     initLayerDragTargets();
+    initAddLaneButton();
+    bindAllLayerLabels();
     initExportButton();
     initCopyLinkButton();
     initRefreshButton();
@@ -777,6 +809,7 @@ export async function initializeApp() {
         renderComponentList(activeCategory);
         renderConnections();
         applyDiagramTitleToDom(diagramTitle);
+        applyLayerNamesToDom();
     }
     window.addEventListener('resize', () => renderConnections());
 }
@@ -803,6 +836,9 @@ async function restoreDiagramStateFromStorage() {
         const storedTitle = stored.diagramTitle || DEFAULT_DIAGRAM_TITLE;
         setDiagramTitle(storedTitle);
         applyDiagramTitleToDom(storedTitle);
+        applyStoredCustomLayers(stored.customLayers);
+        applyStoredLayerNames(stored.layerNames);
+        applyLayerNamesToDom();
         setLastEditedAt(stored.lastEditedAt || null);
 
         if (Array.isArray(stored.amplitudeSdkSelectedBadges)) {
@@ -812,13 +848,14 @@ async function restoreDiagramStateFromStorage() {
         let maxCustomId = 0;
         if (stored.customEntries) {
             Object.entries(stored.customEntries).forEach(([category, entries]) => {
+                if (!isBuiltInLayer(category) && !customLayers.some(layer => layer.id === category)) return;
                 if (!customEntries[category]) {
                     customEntries[category] = [];
                 }
                 entries.forEach(entry => {
                     customEntries[category].push({ ...entry });
                     itemCategoryIndex[entry.id] = category;
-                    const match = /custom-[a-z-]+-(\d+)/.exec(entry.id);
+                    const match = /custom-.+-(\d+)$/.exec(entry.id);
                     if (match) {
                         const parsed = Number(match[1]);
                         if (Number.isFinite(parsed)) {
@@ -832,6 +869,7 @@ async function restoreDiagramStateFromStorage() {
 
         if (stored.layerOrder) {
             Object.entries(stored.layerOrder).forEach(([category, slots]) => {
+                if (!isBuiltInLayer(category) && !customLayers.some(layer => layer.id === category)) return;
                 layerOrder[category] = Array.isArray(slots) ? [...slots] : [];
             });
         }
@@ -839,7 +877,10 @@ async function restoreDiagramStateFromStorage() {
         if (stored.activeModel) {
             setActiveModel(stored.activeModel);
         }
-        if (stored.activeCategory) {
+        if (stored.activeCategory && (
+            isBuiltInLayer(stored.activeCategory)
+            || customLayers.some(layer => layer.id === stored.activeCategory)
+        )) {
             setActiveCategory(stored.activeCategory);
         }
 
@@ -951,11 +992,15 @@ export function clearDiagram() {
     });
     resetCustomEntryCounter(0);
     clearCustomItemIndex();
+    resetCustomLayersDom();
+    resetCustomLayers();
     setActiveModel(null);
     setActiveCategory('marketing');
     setDiagramTitle(DEFAULT_DIAGRAM_TITLE);
     setLastEditedAt(null);
     applyDiagramTitleToDom(DEFAULT_DIAGRAM_TITLE);
+    resetLayerNames();
+    applyLayerNamesToDom();
     updateCategoryTabState();
     updateModelPickerState();
     renderComponentList(activeCategory);
@@ -973,4 +1018,230 @@ export function applyDiagramTitleToDom(title, options = {}) {
     const el = document.getElementById('diagram-title');
     if (!el) return;
     el.textContent = normalizedTitle;
+}
+
+export function applyLayerNamesToDom() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.layer[data-layer]').forEach(layer => {
+        const category = layer.dataset.layer;
+        const label = layer.querySelector('.layer-label');
+        if (!label || document.activeElement === label) return;
+        const name = layerNames[category] || category;
+        label.textContent = name;
+        label.setAttribute('aria-label', `${name} lane name`);
+        const tab = document.querySelector(`.category-tab[data-category="${category}"]`);
+        if (tab) tab.title = name;
+    });
+}
+
+function getPaletteForCategory(category) {
+    const custom = customLayers.find(layer => layer.id === category);
+    return getCustomLanePalette(custom?.paletteIndex || 0);
+}
+
+function applyLanePaletteToElement(element, palette) {
+    if (!element || !palette) return;
+    element.style.setProperty('--lane-bg', palette.bg);
+    element.style.setProperty('--lane-border', palette.border);
+    element.style.setProperty('--lane-accent', palette.accent);
+}
+
+function initAddLaneButton() {
+    const button = document.getElementById('add-lane-btn');
+    if (!button) return;
+    button.addEventListener('click', () => {
+        addCustomLane();
+    });
+}
+
+export function addCustomLane(options = {}) {
+    const { focusLabel = true, persist = true } = options;
+    const layer = registerCustomLayer({
+        id: options.id,
+        name: options.name,
+        paletteIndex: options.paletteIndex
+    });
+    if (!layer) return null;
+    const layerEl = renderCustomLane(layer);
+    renderCustomCategoryTab(layer);
+    if (focusLabel) {
+        switchCategory(layer.id);
+        const label = layerEl?.querySelector('.layer-label');
+        if (label) {
+            label.focus();
+            const selection = window.getSelection?.();
+            const range = document.createRange?.();
+            if (selection && range) {
+                range.selectNodeContents(label);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        }
+    }
+    touchLastEdited();
+    renderConnections();
+    if (persist) void persistDiagramState();
+    return layer;
+}
+
+function renderCustomLane(layer) {
+    const canvas = document.querySelector('.canvas');
+    if (!canvas) return null;
+    const existing = canvas.querySelector(`.layer[data-layer="${layer.id}"]`);
+    if (existing) return existing;
+
+    const layerEl = document.createElement('div');
+    layerEl.className = 'layer layer-custom';
+    layerEl.dataset.layer = layer.id;
+    applyLanePaletteToElement(layerEl, getCustomLanePalette(layer.paletteIndex));
+    layerEl.innerHTML = `
+        <div class="layer-label" contenteditable="true" role="textbox" spellcheck="false"></div>
+        <button type="button" class="layer-remove" title="Remove lane" aria-label="Remove lane">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+        <div class="layer-content"></div>
+    `;
+    const label = layerEl.querySelector('.layer-label');
+    label.textContent = layer.name;
+    label.setAttribute('aria-label', `${layer.name} lane name`);
+    const addBtn = document.getElementById('add-lane-btn');
+    if (addBtn) {
+        canvas.insertBefore(layerEl, addBtn);
+    } else {
+        canvas.appendChild(layerEl);
+    }
+    bindLayerDragTarget(layerEl);
+    bindLayerLabel(layerEl.querySelector('.layer-label'));
+    layerEl.querySelector('.layer-remove')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        removeCustomLane(layer.id);
+    });
+    return layerEl;
+}
+
+function renderCustomCategoryTab(layer) {
+    const picker = document.querySelector('.category-picker');
+    if (!picker) return null;
+    const existing = picker.querySelector(`.category-tab[data-category="${layer.id}"]`);
+    if (existing) {
+        existing.title = layer.name;
+        applyLanePaletteToElement(existing, getCustomLanePalette(layer.paletteIndex));
+        return existing;
+    }
+    const tab = document.createElement('button');
+    tab.className = 'category-tab custom-lane-tab';
+    tab.dataset.category = layer.id;
+    tab.title = layer.name;
+    tab.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18"/>
+            <path d="M3 15h18"/>
+        </svg>
+    `;
+    applyLanePaletteToElement(tab, getCustomLanePalette(layer.paletteIndex));
+    tab.addEventListener('click', () => switchCategory(layer.id));
+    picker.appendChild(tab);
+    return tab;
+}
+
+function removeCustomLane(category) {
+    if (isBuiltInLayer(category)) return;
+    const layerEl = document.querySelector(`.layer[data-layer="${category}"]`);
+    layerEl?.querySelectorAll('.diagram-node').forEach(node => {
+        const itemId = node.dataset.id;
+        node.remove();
+        addedItems[category]?.delete(itemId);
+        delete nodeNotes[itemId];
+        removeRelatedCustomConnections(itemId);
+    });
+    layerEl?.remove();
+    document.querySelector(`.category-tab[data-category="${category}"]`)?.remove();
+    unregisterCustomLayer(category);
+    if (activeCategory === category) {
+        switchCategory('marketing');
+    }
+    touchLastEdited();
+    renderConnections();
+    void persistDiagramState();
+}
+
+function resetCustomLayersDom() {
+    document.querySelectorAll('.layer.layer-custom').forEach(layer => layer.remove());
+    document.querySelectorAll('.category-tab.custom-lane-tab').forEach(tab => tab.remove());
+}
+
+function applyStoredCustomLayers(storedLayers) {
+    resetCustomLayersDom();
+    resetCustomLayers();
+    if (!Array.isArray(storedLayers)) return;
+    storedLayers.forEach(layer => {
+        if (!layer?.id) return;
+        const registered = registerCustomLayer({
+            id: layer.id,
+            name: layer.name || DEFAULT_CUSTOM_LANE_NAME,
+            paletteIndex: layer.paletteIndex
+        });
+        renderCustomLane(registered);
+        renderCustomCategoryTab(registered);
+    });
+}
+
+function bindAllLayerLabels() {
+    document.querySelectorAll('.layer-label').forEach(bindLayerLabel);
+}
+
+export function bindLayerLabel(label) {
+    if (!label || label.dataset.labelBound === 'true') return;
+    label.dataset.labelBound = 'true';
+    label.addEventListener('input', (event) => handleLayerNameChange(label, event));
+    label.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            label.blur();
+        }
+    });
+    label.addEventListener('blur', (event) => handleLayerNameChange(label, event));
+    label.addEventListener('mousedown', (event) => event.stopPropagation());
+    label.addEventListener('dragstart', (event) => event.preventDefault());
+}
+
+function handleLayerNameChange(label, event) {
+    const category = label.closest('.layer')?.dataset?.layer;
+    if (!category) return;
+    const trimmed = (label.textContent || '').trim();
+    setLayerName(category, trimmed);
+    if (!trimmed && event?.type === 'blur') {
+        label.textContent = layerNames[category];
+    }
+    const name = layerNames[category] || DEFAULT_CUSTOM_LANE_NAME;
+    label.setAttribute('aria-label', `${name} lane name`);
+    const tab = document.querySelector(`.category-tab[data-category="${category}"]`);
+    if (tab) tab.title = name;
+    touchLastEdited();
+    void persistDiagramState();
+}
+
+function touchLastEdited() {
+    const now = new Date().toISOString();
+    setLastEditedAt(now);
+    try {
+        localStorage.setItem('amplistack:lastEditedAt', now);
+    } catch {
+        // Ignore storage failures
+    }
+    const lastEditedEl = document.getElementById('diagram-last-edited');
+    if (!lastEditedEl) return;
+    const date = new Date(now);
+    lastEditedEl.textContent = `Last edited: ${date.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    })}`;
 }
