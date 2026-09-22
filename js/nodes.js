@@ -247,8 +247,11 @@ function createComponentListItem(item, category, isCustom) {
         <div class="${iconClass}">
             ${iconHtml}
         </div>
-        <span class="component-name">${item.name}</span>
     `;
+    const nameEl = document.createElement('span');
+    nameEl.className = 'component-name';
+    nameEl.textContent = item.name;
+    li.append(nameEl);
 
     if (!isBuiltInLayer(category)) {
         applyLanePaletteToElement(li.querySelector('.component-icon'), getPaletteForCategory(category));
