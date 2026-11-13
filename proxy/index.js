@@ -7,6 +7,8 @@ import express from 'express';
 import OpenAI from 'openai';
 import pg from 'pg';
 import { mountMcp } from './mcp.js';
+import { verifyGoogleToken } from './google-auth.js';
+import { updateOwnedDiagram } from './diagram-auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, '.env') });
@@ -66,37 +68,6 @@ function verifyToken(token) {
         if (data.exp < Date.now()) return null;
         return data;
     } catch {
-        return null;
-    }
-}
-
-async function verifyGoogleToken(credential) {
-    try {
-        // Decode the JWT payload directly (Google ID tokens are standard JWTs)
-        const parts = credential.split('.');
-        if (parts.length !== 3) return null;
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-
-        // Verify issuer
-        if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') {
-            console.error('Google token: invalid issuer', payload.iss);
-            return null;
-        }
-        // Verify audience
-        if (GOOGLE_CLIENT_ID && payload.aud !== GOOGLE_CLIENT_ID) {
-            console.error('Google token: audience mismatch', payload.aud, '!=', GOOGLE_CLIENT_ID);
-            return null;
-        }
-        // Verify not expired
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
-            console.error('Google token: expired');
-            return null;
-        }
-
-        console.log('Google token verified for:', payload.email);
-        return payload;
-    } catch (err) {
-        console.error('Google token verification failed:', err);
         return null;
     }
 }
@@ -228,14 +199,11 @@ app.post('/api/auth/google', async (req, res) => {
     const { credential } = req.body;
     if (!credential) return res.status(400).json({ error: 'Missing credential' });
 
-    const googleUser = await verifyGoogleToken(credential);
+    const googleUser = await verifyGoogleToken(credential, GOOGLE_CLIENT_ID);
     if (!googleUser) return res.status(401).json({ error: 'Invalid Google credential' });
 
     const email = (googleUser.email || '').toLowerCase();
-    console.log('Login attempt:', email, '| hd:', googleUser.hd);
-    if (!email.endsWith('@amplitude.com')) {
-        return res.status(403).json({ error: 'Only @amplitude.com accounts are allowed' });
-    }
+    console.log('Verified Google login:', email);
 
     try {
         // Upsert user
@@ -378,28 +346,28 @@ app.get('/api/diagrams/:shortCode', authMiddleware(true), async (req, res) => {
     }
 });
 
-// Update diagram
+// Update diagram. A link grants viewing and forking, but only the owner may edit.
 app.put('/api/diagrams/:shortCode', authMiddleware(true), async (req, res) => {
     const { title, state_json } = req.body;
     if (!state_json) return res.status(400).json({ error: 'state_json is required' });
 
     try {
-        const result = await pool.query(
-            `UPDATE diagrams SET title = $1, state_json = $2, updated_at = NOW()
-             WHERE short_code = $3
-             RETURNING *`,
-            [title || 'Untitled Diagram', state_json, req.params.shortCode]
-        );
+        const result = await updateOwnedDiagram(pool, {
+            shortCode: req.params.shortCode,
+            userId: req.user.id,
+            title,
+            stateJson: state_json
+        });
         if (result.rows.length === 0) return res.status(404).json({ error: 'Diagram not found' });
 
         const diagram = result.rows[0];
 
-        // Update access role to editor if not owner
+        // Refresh the owner's access timestamp without upgrading a link visitor.
         await pool.query(
             `INSERT INTO diagram_access (user_id, diagram_id, role, last_accessed_at)
-             VALUES ($1, $2, 'editor', NOW())
+             VALUES ($1, $2, 'owner', NOW())
              ON CONFLICT (user_id, diagram_id) DO UPDATE SET
-                role = CASE WHEN diagram_access.role = 'owner' THEN 'owner' ELSE 'editor' END,
+                role = 'owner',
                 last_accessed_at = NOW()`,
             [req.user.id, diagram.id]
         );
